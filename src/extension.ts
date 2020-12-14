@@ -3,10 +3,9 @@
 import * as vsc from 'vscode';
 import { PublishCommand } from './commands/publish';
 import { IterationCompletionProvider } from './providers/iterationCompletionProvider';
-import { UserStoryCompletionProvider } from './providers/userStoryCompletionProvider';
 import { SessionStore } from './store';
 import { AzureClient } from './utils/azure-client';
-import { BugPrefix, Commands, LanguageId, UserStoryPrefix } from './constants';
+import { Commands, LanguageId } from './constants';
 import { PublishCodeLensProvider } from './providers/publishCodeLensProvider';
 import { Logger } from './utils/logger';
 import { Configuration } from './utils/config';
@@ -15,10 +14,8 @@ import { ActivityDiagnostics } from './providers/activityDiagnostics';
 import { ActivityCodeActionProvider } from './providers/activityCodeActionProvider';
 import { SnippetCompletionProvider } from './providers/snippetCompletionProvider';
 import { WorkItemRequestBuilder } from './utils/workItemRequestBuilder';
-import { BugsCompletionProvider } from './providers/bugsCompletionProvider';
-import { PublishUserStoryCommand } from './commands/publish-user-story';
-import { PublishBugCommand } from './commands/publish-bug';
-import { PublishBase } from './commands/publish-base';
+import { PrefixService } from './prefix-service';
+import { WorkItemCompletionProvider } from './providers/workItemCompletionProvider';
 
 const documentSelector = [
 	{ language: LanguageId, scheme: 'file' },
@@ -31,16 +28,17 @@ export function activate(context: vsc.ExtensionContext) {
 	const config = new Configuration(logger);
 	const azureClient = new AzureClient(config, logger, workItemRequestBuilder);
 	const sessionStore = new SessionStore(azureClient, config, logger);
-	const publishers: {[workItemType: string]: PublishBase} = {
-		[UserStoryPrefix]: new PublishUserStoryCommand(sessionStore, azureClient, logger, config), 
-		[BugPrefix]: new PublishBugCommand(sessionStore, azureClient, logger, config)
-	};
+	const prefixService = new PrefixService(config);
 
-	const publishCommand = new PublishCommand(publishers);
+	const publishCommand = new PublishCommand(sessionStore, azureClient, logger, config, prefixService);
+
+	vsc.workspace.onDidChangeConfiguration(() => {
+		console.log(vsc.workspace.getConfiguration('planner'));
+	});
 
 	const alphabet = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 
-	const activityDiagnostics = new ActivityDiagnostics(sessionStore);
+	const activityDiagnostics = new ActivityDiagnostics(sessionStore, prefixService);
 	activityDiagnostics.register();
 
 	context.subscriptions.push(...[
@@ -50,9 +48,8 @@ export function activate(context: vsc.ExtensionContext) {
 		vsc.languages.registerCompletionItemProvider(documentSelector, new ActivityCompletionProvider(sessionStore, logger), ...alphabet),
 		vsc.languages.registerCompletionItemProvider(documentSelector, new SnippetCompletionProvider(config), ...alphabet),
 		vsc.languages.registerCompletionItemProvider(documentSelector, new IterationCompletionProvider(sessionStore, logger), '#'),
-		vsc.languages.registerCompletionItemProvider(documentSelector, new UserStoryCompletionProvider(sessionStore, logger), '#'),
-		vsc.languages.registerCompletionItemProvider(documentSelector, new BugsCompletionProvider(sessionStore, logger), '#'),
-		vsc.languages.registerCodeLensProvider(documentSelector, new PublishCodeLensProvider()),
+		vsc.languages.registerCompletionItemProvider(documentSelector, new WorkItemCompletionProvider(sessionStore, logger, prefixService), '#'),
+		vsc.languages.registerCodeLensProvider(documentSelector, new PublishCodeLensProvider(prefixService)),
 		vsc.languages.registerCodeActionsProvider(documentSelector, new ActivityCodeActionProvider(sessionStore, logger)),
 		activityDiagnostics
 	]);

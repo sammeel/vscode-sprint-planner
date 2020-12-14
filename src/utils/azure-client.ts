@@ -150,7 +150,7 @@ export class AzureClient implements vsc.Disposable {
 		return result.data.allowedValues;
 	}
 
-	public async getUserStoryInfo(userStoryIds: number[]): Promise<UserStoryInfo[]> {
+	public async GetWorkItemInfos(userStoryIds: number[]): Promise<WorkItemInfoResult> {
 		const finish = this.logger.perf('Getting user story info...');
 
 		const params = <any>{
@@ -161,27 +161,22 @@ export class AzureClient implements vsc.Disposable {
 		const result = await this.client.get<WorkItemInfoResult>('/wit/workitems', { params });
 		finish();
 
+		return result.data;
+	}
+
+	public async getUserStoryInfo(userStoryIds: number[]): Promise<UserStoryInfo[]> {
+		const result = await this.GetWorkItemInfos(userStoryIds);
 		const userStoryType = this.getUserStoryWorkItemType();
 
-		return result.data.value
+		return result.value
 			.filter(x => x.fields["System.WorkItemType"] === userStoryType)
 			.map(UserStoryInfoMapper.fromWorkItemInfo);
 	}
 
 	public async getBugInfo(userStoryIds: number[]): Promise<UserStoryInfo[]> {
-		const finish = this.logger.perf('Getting user story info...');
+		const result = await this.GetWorkItemInfos(userStoryIds);
 
-		const params = <any>{
-			ids: userStoryIds.join(','),
-			'$expand': 'Relations'
-		};
-
-		const result = await this.client.get<WorkItemInfoResult>('/wit/workitems', { params });
-		finish();
-
-		const userStoryType = this.getUserStoryWorkItemType();
-
-		return result.data.value
+		return result.value
 			.filter(x => x.fields["System.WorkItemType"] === "Bug")
 			.map(UserStoryInfoMapper.fromWorkItemInfo);
 	}
@@ -194,7 +189,7 @@ export class AzureClient implements vsc.Disposable {
 
 		const finish = this.logger.perf('Getting max stack rank for tasks...');
 
-		const params = <any>{
+		const params: any = {
 			ids: taskIds.join(','),
 			fields: ['Microsoft.VSTS.Common.StackRank'].join(',')
 		};
@@ -290,6 +285,26 @@ export class AzureClient implements vsc.Disposable {
 			}
 		}).then(res => {
 			this.logger.log(`#${res.data.id} Bug '${title}' created (${stopwatch.toString()})`);
+			return res.data;
+		}).catch(err => {
+			console.error(err);
+			return Promise.reject(err);
+		});
+	}
+
+	public createWorkItem(title: string, iterationPath: string, workItemType: string): Promise<WorkItemInfo> {
+		const request = this.workItemRequestBuilder.createUserStory(title, iterationPath);
+
+		this.logger.log(`Creating Bug: ${title}...`);
+		let stopwatch = Stopwatch.startNew();
+
+		return this.client.post<WorkItemInfo>(
+			`/wit/workitems/$${workItemType}`, request, {
+			headers: {
+				'Content-Type': 'application/json-patch+json'
+			}
+		}).then(res => {
+			this.logger.log(`#${res.data.id} ${workItemType} '${title}' created (${stopwatch.toString()})`);
 			return res.data;
 		}).catch(err => {
 			console.error(err);

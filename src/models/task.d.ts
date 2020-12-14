@@ -1,3 +1,5 @@
+import { IPrefix } from "../constants";
+
 export interface Task {
 	id?: number;
 	title: string;
@@ -12,4 +14,8 @@ export interface WorkItem {
 	title: string;
 	tasks: Task[];
 	line: number;
+}
+
+export interface WorkItemWithPrefix extends WorkItem {
+	prefix: IPrefix;
 }

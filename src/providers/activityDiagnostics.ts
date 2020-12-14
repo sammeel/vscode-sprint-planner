@@ -4,13 +4,14 @@ import { ISessionStore } from '../store';
 import debounce from '../utils/debounce';
 import { TextProcessor } from '../utils/textProcessor';
 import { WorkItem } from '../models/task';
+import { PrefixService } from '../prefix-service';
 
 export class ActivityDiagnostics implements vsc.Disposable {
 	private collection: vsc.DiagnosticCollection;
 	private handler?: vsc.Disposable;
 	private decorations: vsc.TextEditorDecorationType[] = [];
 
-	constructor(private store: ISessionStore) {
+	constructor(private store: ISessionStore, private prefixService: PrefixService) {
 		this.collection = vsc.languages.createDiagnosticCollection('activity-diagnostics');
 	}
 
@@ -55,8 +56,8 @@ export class ActivityDiagnostics implements vsc.Disposable {
 		const diagnostics: vsc.Diagnostic[] = [];
 		const textEditor = vsc.window.activeTextEditor;
 
-		const userStoryLines = TextProcessor.getUserStoryLineIndices(lines);
-		const userStories = userStoryLines.map(usLine => TextProcessor.getUserStory(lines, usLine)!);
+		const userStoryLines = TextProcessor.getWorkItemLineIndices(lines, this.prefixService.getPrefixes());
+		const userStories = userStoryLines.map(usLine => TextProcessor.getWorkItemInfo(lines, usLine, this.prefixService.getPrefixes())!);
 
 		for (let line = 0; line < lines.length; line++) {
 			const match = /^(\w+):$/.exec(lines[line]);

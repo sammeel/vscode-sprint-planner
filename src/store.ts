@@ -6,6 +6,7 @@ import { Stopwatch } from './utils/stopwatch';
 import { Configuration } from './utils/config';
 import { TextProcessor } from './utils/textProcessor';
 import { WorkItem } from './models/task';
+import { UserStoryInfoMapper } from './utils/mappers';
 
 const MissingUrlOrToken = "Missing URL or token in configuration";
 
@@ -18,6 +19,7 @@ export class SessionStore implements ISessionStore {
 	public iterations?: IterationInfo[];
 	public userStories?: UserStoryInfo[] = undefined;
 	public bugs?: UserStoryInfo[] = undefined;
+	public workItems?: UserStoryInfo[] = undefined;
 
 	constructor(private azureClient: AzureClient, private config: Configuration, private logger: Logger) {
 	}
@@ -108,12 +110,30 @@ export class SessionStore implements ISessionStore {
 		}
 
 		this.userStories = await this.azureClient.getUserStoryInfo(workItemsIds.map(x => x.id));
+		this.bugs = await this.azureClient.getBugInfo(workItemsIds.map(x => x.id));
 		total.stop();
 
 		this.logger.log(`User stories fetched in ${total.toString()} (3 requests)`);
 		vsc.window.setStatusBarMessage(`User stories fetched in ${total.toString()} (3 requests)`, 2000);
 
 		return Promise.resolve();
+	}
+
+	async ensureHasItemsOfWorkItemType(prefix: Constants.IPrefix): Promise<void> {
+		if (!this.config.isValid) {
+			return Promise.reject(MissingUrlOrToken);
+		}
+
+		let total = Stopwatch.startNew();
+		let iteration = await this.determineIteration();
+
+		const workItemsIds = await this.azureClient.getIterationWorkItems(iteration.id);
+
+		const result = await this.azureClient.GetWorkItemInfos(workItemsIds.map(x => x.id));
+
+		this.workItems = result.value
+			.filter(x => x.fields["System.WorkItemType"] === prefix.workItemType)
+			.map(UserStoryInfoMapper.fromWorkItemInfo);
 	}
 
 	async ensureHasBugs(): Promise<void> {
@@ -160,11 +180,13 @@ export interface ISessionStore {
 	readonly iterations?: IterationInfo[];
 	readonly userStories?: UserStoryInfo[];
 	readonly bugs?: UserStoryInfo[];
+	readonly workItems?: UserStoryInfo[];
 
 	ensureHasActivityTypes(): Promise<void>;
 	ensureHasIterations(): Promise<void>;
 	ensureHasUserStories(): Promise<void>;
 	ensureHasBugs(): Promise<void>;
+	ensureHasItemsOfWorkItemType(prefix: Constants.IPrefix): Promise<void>;
 
 	determineIteration(): Promise<IterationInfo>;
 }

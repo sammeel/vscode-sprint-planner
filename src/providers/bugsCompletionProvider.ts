@@ -1,6 +1,6 @@
 import * as vsc from 'vscode';
 import { ISessionStore } from '../store';
-import { BugPrefix } from '../constants';
+import { Bug } from '../constants';
 import { Logger } from '../utils/logger';
 import { Document } from '../utils/document';
 
@@ -11,7 +11,7 @@ export class BugsCompletionProvider implements vsc.CompletionItemProvider {
 	async provideCompletionItems(document: vsc.TextDocument, position: vsc.Position, _token: vsc.CancellationToken, _context: vsc.CompletionContext) {
 		const text = Document.getTextBeforeCursor(document, position);
 
-		if (text === BugPrefix) {
+		if (text === Bug.prefix) {
 			try {
 				await this.sessionStore.ensureHasBugs();
 

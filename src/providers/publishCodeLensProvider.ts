@@ -2,28 +2,21 @@ import * as vsc from "vscode";
 import { Commands, NewLineRegex } from "../constants";
 import { TextProcessor } from "../utils/textProcessor";
 import { Task } from "../models/task";
+import { PrefixService } from "../prefix-service";
 
 export class PublishCodeLensProvider implements vsc.CodeLensProvider {
+  constructor(private prefixService: PrefixService) {}
+
   provideCodeLenses(_document: vsc.TextDocument, _token: vsc.CancellationToken): vsc.ProviderResult<vsc.CodeLens[]> {
     const editor = vsc.window.activeTextEditor!;
     const lines = editor.document.getText().split(NewLineRegex);
 
-    const userStoryLines = TextProcessor.getUserStoryLineIndices(lines);
+    const prefixes = this.prefixService.getPrefixes();
 
-    const resultUserStories = userStoryLines.map((line) => {
-      const us = TextProcessor.getUserStory(lines, line)!;
+    const lineIndices = TextProcessor.getWorkItemLineIndices(lines, prefixes)    
 
-      return new vsc.CodeLens(new vsc.Range(line, 0, line, lines[line].length), {
-        title: `Publish to Azure DevOps, ${this.buildExtraInfo(us)}`,
-        command: Commands.publish,
-        arguments: [line],
-      });
-    });
-
-    const bugLines = TextProcessor.getBugLineIndices(lines);
-
-    const resultBugs = bugLines. map((line) => {
-      const us = TextProcessor.getBug(lines, line)!;
+    const workItemResults = lineIndices.map((line) => {
+      const us = TextProcessor.getWorkItemInfo(lines, line, prefixes)!;
 
       return new vsc.CodeLens(new vsc.Range(line, 0, line, lines[line].length), {
         title: `Publish to Azure DevOps, ${this.buildExtraInfo(us)}`,
@@ -32,7 +25,7 @@ export class PublishCodeLensProvider implements vsc.CodeLensProvider {
       });
     });
 
-    return resultUserStories.concat(resultBugs);
+    return workItemResults;
   }
 
   private buildExtraInfo({ tasks }: { tasks: Task[] }) {
