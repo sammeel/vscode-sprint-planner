@@ -12,6 +12,10 @@ export const UserStoryPrefix = 'US#';
 export const UserStoryRegex = /^US#(?<id>\d+|new)( - (?<title>.*))?/;
 export const EndOfUserStoryRegex = /^(---|\s*)$/;
 
+export const BugPrefix = 'BUG#';
+export const BugRegex = /^BUG#(?<id>\d+|new)( - (?<title>.*))?/;
+export const EndOfBugRegex = /^(---|\s*)$/;
+
 export const TaskPrefixRegex = /^\s*[-*]\s*/;
 export const TaskEstimationRegex = /\s*[,-]\s*((?<estimation_m>\d+)m|(?<estimation>\d+(?:\.\d+)?)h?)/;
 export const TaskIdRegex = /\s*\[#(?<id>\d+)\]$/;

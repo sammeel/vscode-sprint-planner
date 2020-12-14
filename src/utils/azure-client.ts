@@ -168,6 +168,24 @@ export class AzureClient implements vsc.Disposable {
 			.map(UserStoryInfoMapper.fromWorkItemInfo);
 	}
 
+	public async getBugInfo(userStoryIds: number[]): Promise<UserStoryInfo[]> {
+		const finish = this.logger.perf('Getting user story info...');
+
+		const params = <any>{
+			ids: userStoryIds.join(','),
+			'$expand': 'Relations'
+		};
+
+		const result = await this.client.get<WorkItemInfoResult>('/wit/workitems', { params });
+		finish();
+
+		const userStoryType = this.getUserStoryWorkItemType();
+
+		return result.data.value
+			.filter(x => x.fields["System.WorkItemType"] === "Bug")
+			.map(UserStoryInfoMapper.fromWorkItemInfo);
+	}
+
 	public async getMaxTaskStackRank(taskIds: number[]): Promise<number> {
 		if (taskIds.length === 0) {
 			this.logger.log('No tasks in User Story -> Stack Rank = 0');
@@ -255,6 +273,28 @@ export class AzureClient implements vsc.Disposable {
 			case "Scrum": return "Product Backlog Item";
 			default: throw new Error("Process type not supported");
 		}
+	}
+
+	public createBug(title: string, iterationPath: string): Promise<WorkItemInfo> {
+		const request = this.workItemRequestBuilder.createUserStory(title, iterationPath);
+
+		const workItemType = encodeURIComponent("Bug");
+
+		this.logger.log(`Creating Bug: ${title}...`);
+		let stopwatch = Stopwatch.startNew();
+
+		return this.client.post<WorkItemInfo>(
+			`/wit/workitems/$${workItemType}`, request, {
+			headers: {
+				'Content-Type': 'application/json-patch+json'
+			}
+		}).then(res => {
+			this.logger.log(`#${res.data.id} Bug '${title}' created (${stopwatch.toString()})`);
+			return res.data;
+		}).catch(err => {
+			console.error(err);
+			return Promise.reject(err);
+		});
 	}
 }
 

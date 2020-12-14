@@ -1,5 +1,5 @@
 import * as Constants from '../constants';
-import { Task, UserStory } from '../models/task';
+import { Task, WorkItem } from '../models/task';
 
 export class TextProcessor {
 
@@ -8,6 +8,18 @@ export class TextProcessor {
 
 		for (let i = 0; i < allLines.length; i++) {
 			if (Constants.UserStoryRegex.test(allLines[i])) {
+				results.push(i);
+			}
+		}
+
+		return results;
+	}
+
+	public static getBugLineIndices(allLines: string[]) {
+		const results: number[] = [];
+
+		for (let i = 0; i < allLines.length; i++) {
+			if (Constants.BugRegex.test(allLines[i])) {
 				results.push(i);
 			}
 		}
@@ -50,7 +62,7 @@ export class TextProcessor {
 
 		const tasks = TextProcessor.getTasksInfo(allLines, userStoryInfo.line + 1);
 
-		return <UserStory>{
+		return <WorkItem>{
 			line: userStoryInfo.line,
 			id: userStoryInfo.id,
 			title: userStoryInfo.title,
@@ -74,13 +86,45 @@ export class TextProcessor {
 		}
 	}
 
+	public static getBug(allLines: string[], currentLine: number) {
+		const userStoryInfo = TextProcessor.getBugInfo(allLines, currentLine);
+		if (!userStoryInfo) {
+			return;
+		}
+
+		const tasks = TextProcessor.getTasksInfo(allLines, userStoryInfo.line + 1);
+
+		return <WorkItem>{
+			line: userStoryInfo.line,
+			id: userStoryInfo.id,
+			title: userStoryInfo.title,
+			tasks
+		};
+	}
+
+	private static getBugInfo(lines: string[], currentLine: number) {
+		for (; currentLine >= 0; currentLine--) {
+			const match = Constants.BugRegex.exec(lines[currentLine]);
+
+			if (match !== null) {
+				const { id, title } = match.groups!;
+
+				return {
+					line: currentLine,
+					id: id === 'new' ? undefined : parseInt(id),
+					title
+				};
+			}
+		}
+	}
+
 	private static getTasksInfo(lines: string[], currentLine: number) {
 		const firstTaskLine = currentLine;
 		let lastTaskLine = lines.length - 1;
 
 		// find user story breaking pattern
 		for (; currentLine < lines.length; currentLine++) {
-			if (TextProcessor.isEndOfUserStory(lines[currentLine])) {
+			if (TextProcessor.isEndOfUserStory(lines[currentLine]) || TextProcessor.isEndOfBug(lines[currentLine])) {
 				lastTaskLine = currentLine - 1;
 				break;
 			}
@@ -156,6 +200,11 @@ export class TextProcessor {
 
 	private static isEndOfUserStory(line: string) {
 		let isEndOfUserStory = Constants.EndOfUserStoryRegex.test(line) || Constants.UserStoryRegex.test(line);
+		return isEndOfUserStory;
+	}
+
+	private static isEndOfBug(line: string) {
+		let isEndOfUserStory = Constants.EndOfBugRegex.test(line) || Constants.BugRegex.test(line);
 		return isEndOfUserStory;
 	}
 

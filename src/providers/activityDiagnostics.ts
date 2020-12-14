@@ -3,7 +3,7 @@ import { LanguageId, NewLineRegex } from '../constants';
 import { ISessionStore } from '../store';
 import debounce from '../utils/debounce';
 import { TextProcessor } from '../utils/textProcessor';
-import { UserStory } from '../models/task';
+import { WorkItem } from '../models/task';
 
 export class ActivityDiagnostics implements vsc.Disposable {
 	private collection: vsc.DiagnosticCollection;
@@ -85,7 +85,7 @@ export class ActivityDiagnostics implements vsc.Disposable {
 		this.collection.set(document.uri, diagnostics);
 	}
 
-	private findUserStory(userStories: UserStory[], line: number) {
+	private findUserStory(userStories: WorkItem[], line: number) {
 		for (let i = userStories.length - 1; i >= 0; i--) {
 			if (userStories[i].line < line) {
 				return userStories[i];
@@ -93,7 +93,7 @@ export class ActivityDiagnostics implements vsc.Disposable {
 		}
 	}
 
-	private createActivityDecoration(userStory: UserStory, activity: string) {
+	private createActivityDecoration(userStory: WorkItem, activity: string) {
 		const stats = userStory.tasks.filter(t => t.activity === activity).reduce((acc, task) => {
 			acc.tasks++;
 			acc.hours += task.estimation || 0;

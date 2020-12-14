@@ -7,9 +7,9 @@ export interface Task {
 	line: number;
 }
 
-export interface UserStory {
-	line: number,
-	id?: number,
+export interface WorkItem {
+	id?: number;
 	title: string;
-	tasks: Task[]
+	tasks: Task[];
+	line: number;
 }

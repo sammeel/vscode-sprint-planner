@@ -5,6 +5,7 @@ import { Logger } from './utils/logger';
 import { Stopwatch } from './utils/stopwatch';
 import { Configuration } from './utils/config';
 import { TextProcessor } from './utils/textProcessor';
+import { WorkItem } from './models/task';
 
 const MissingUrlOrToken = "Missing URL or token in configuration";
 
@@ -16,6 +17,7 @@ export class SessionStore implements ISessionStore {
 	public activityTypes?: string[];
 	public iterations?: IterationInfo[];
 	public userStories?: UserStoryInfo[] = undefined;
+	public bugs?: UserStoryInfo[] = undefined;
 
 	constructor(private azureClient: AzureClient, private config: Configuration, private logger: Logger) {
 	}
@@ -114,6 +116,30 @@ export class SessionStore implements ISessionStore {
 		return Promise.resolve();
 	}
 
+	async ensureHasBugs(): Promise<void> {
+		if (!this.config.isValid) {
+			return Promise.reject(MissingUrlOrToken);
+		}
+
+		let total = Stopwatch.startNew();
+		let iteration = await this.determineIteration();
+
+		const workItemsIds = await this.azureClient.getIterationWorkItems(iteration.id);
+
+		if (workItemsIds.length === 0) {
+			this.logger.log(`No bugs found in iteration`);
+			return Promise.reject();
+		}
+
+		this.bugs = await this.azureClient.getBugInfo(workItemsIds.map(x => x.id));
+		total.stop();
+
+		this.logger.log(`Bugs fetched in ${total.toString()} (3 requests)`);
+		vsc.window.setStatusBarMessage(`Bugs fetched in ${total.toString()} (3 requests)`, 2000);
+
+		return Promise.resolve();
+	}
+
 	public async determineIteration() {
 		this.setCustomIteration();
 
@@ -133,10 +159,12 @@ export interface ISessionStore {
 	readonly activityTypes?: string[];
 	readonly iterations?: IterationInfo[];
 	readonly userStories?: UserStoryInfo[];
+	readonly bugs?: UserStoryInfo[];
 
 	ensureHasActivityTypes(): Promise<void>;
 	ensureHasIterations(): Promise<void>;
 	ensureHasUserStories(): Promise<void>;
+	ensureHasBugs(): Promise<void>;
 
 	determineIteration(): Promise<IterationInfo>;
 }
