@@ -17,8 +17,6 @@ export class SessionStore implements ISessionStore {
 
 	public activityTypes?: string[];
 	public iterations?: IterationInfo[];
-	public userStories?: UserStoryInfo[] = undefined;
-	public bugs?: UserStoryInfo[] = undefined;
 	public workItems?: UserStoryInfo[] = undefined;
 
 	constructor(private azureClient: AzureClient, private config: Configuration, private logger: Logger) {
@@ -94,31 +92,6 @@ export class SessionStore implements ISessionStore {
 		return Promise.resolve();
 	}
 
-	async ensureHasUserStories(): Promise<void> {
-		if (!this.config.isValid) {
-			return Promise.reject(MissingUrlOrToken);
-		}
-
-		let total = Stopwatch.startNew();
-		let iteration = await this.determineIteration();
-
-		const workItemsIds = await this.azureClient.getIterationWorkItems(iteration.id);
-
-		if (workItemsIds.length === 0) {
-			this.logger.log(`No user stories found in iteration`);
-			return Promise.reject();
-		}
-
-		this.userStories = await this.azureClient.getUserStoryInfo(workItemsIds.map(x => x.id));
-		this.bugs = await this.azureClient.getBugInfo(workItemsIds.map(x => x.id));
-		total.stop();
-
-		this.logger.log(`User stories fetched in ${total.toString()} (3 requests)`);
-		vsc.window.setStatusBarMessage(`User stories fetched in ${total.toString()} (3 requests)`, 2000);
-
-		return Promise.resolve();
-	}
-
 	async ensureHasItemsOfWorkItemType(prefix: Constants.IPrefix): Promise<void> {
 		if (!this.config.isValid) {
 			return Promise.reject(MissingUrlOrToken);
@@ -134,30 +107,6 @@ export class SessionStore implements ISessionStore {
 		this.workItems = result.value
 			.filter(x => x.fields["System.WorkItemType"] === prefix.workItemType)
 			.map(UserStoryInfoMapper.fromWorkItemInfo);
-	}
-
-	async ensureHasBugs(): Promise<void> {
-		if (!this.config.isValid) {
-			return Promise.reject(MissingUrlOrToken);
-		}
-
-		let total = Stopwatch.startNew();
-		let iteration = await this.determineIteration();
-
-		const workItemsIds = await this.azureClient.getIterationWorkItems(iteration.id);
-
-		if (workItemsIds.length === 0) {
-			this.logger.log(`No bugs found in iteration`);
-			return Promise.reject();
-		}
-
-		this.bugs = await this.azureClient.getBugInfo(workItemsIds.map(x => x.id));
-		total.stop();
-
-		this.logger.log(`Bugs fetched in ${total.toString()} (3 requests)`);
-		vsc.window.setStatusBarMessage(`Bugs fetched in ${total.toString()} (3 requests)`, 2000);
-
-		return Promise.resolve();
 	}
 
 	public async determineIteration() {
@@ -178,14 +127,10 @@ export class SessionStore implements ISessionStore {
 export interface ISessionStore {
 	readonly activityTypes?: string[];
 	readonly iterations?: IterationInfo[];
-	readonly userStories?: UserStoryInfo[];
-	readonly bugs?: UserStoryInfo[];
 	readonly workItems?: UserStoryInfo[];
 
 	ensureHasActivityTypes(): Promise<void>;
 	ensureHasIterations(): Promise<void>;
-	ensureHasUserStories(): Promise<void>;
-	ensureHasBugs(): Promise<void>;
 	ensureHasItemsOfWorkItemType(prefix: Constants.IPrefix): Promise<void>;
 
 	determineIteration(): Promise<IterationInfo>;

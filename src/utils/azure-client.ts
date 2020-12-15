@@ -151,7 +151,7 @@ export class AzureClient implements vsc.Disposable {
 	}
 
 	public async GetWorkItemInfos(userStoryIds: number[]): Promise<WorkItemInfoResult> {
-		const finish = this.logger.perf('Getting user story info...');
+		const finish = this.logger.perf('Getting work items info...');
 
 		const params = <any>{
 			ids: userStoryIds.join(','),
@@ -162,23 +162,6 @@ export class AzureClient implements vsc.Disposable {
 		finish();
 
 		return result.data;
-	}
-
-	public async getUserStoryInfo(userStoryIds: number[]): Promise<UserStoryInfo[]> {
-		const result = await this.GetWorkItemInfos(userStoryIds);
-		const userStoryType = this.getUserStoryWorkItemType();
-
-		return result.value
-			.filter(x => x.fields["System.WorkItemType"] === userStoryType)
-			.map(UserStoryInfoMapper.fromWorkItemInfo);
-	}
-
-	public async getBugInfo(userStoryIds: number[]): Promise<UserStoryInfo[]> {
-		const result = await this.GetWorkItemInfos(userStoryIds);
-
-		return result.value
-			.filter(x => x.fields["System.WorkItemType"] === "Bug")
-			.map(UserStoryInfoMapper.fromWorkItemInfo);
 	}
 
 	public async getMaxTaskStackRank(taskIds: number[]): Promise<number> {
