@@ -1,10 +1,23 @@
 import { S_IFMT } from 'constants';
 import * as Constants from '../constants';
-import { Task, WorkItem, WorkItemWithPrefix } from '../models/task';
+import { TaskTextInput, WorkItemTextInput } from '../models/textProcessor';
+import { IterationTextInput } from '../models/textProcessor';
 
-export class TextProcessor {
+export interface ITextProcessor {
+	getWorkItemLineIndices(allLines: string[], prefixes: Constants.IPrefix[]): number[];
+	getIteration(allLines: string[], currentLine: number): IterationTextInput | undefined;
+	getWorkItemInfo(allLines: string[], currentLine: number, prefixes: Constants.IPrefix[]): WorkItemTextInput | undefined
 
-	public static getWorkItemLineIndices(allLines: string[], prefixes: Constants.IPrefix[]): number[]{
+	// TODO: remove
+	getUserStoryLineIndices(allLines: string[]): any;
+	getUserStory(allLines: string[], currentLine: number): any;
+	getBugLineIndices(allLines: string[]): number[];
+	getBug(allLines: string[], currentLine: number): any;
+}
+
+export class TextProcessor implements ITextProcessor {
+
+	public getWorkItemLineIndices(allLines: string[], prefixes: Constants.IPrefix[]): number[]{
 		const results: number[] = [];
 
 		for (let i = 0; i < allLines.length; i++) {
@@ -16,7 +29,7 @@ export class TextProcessor {
 		return results;
 	}
 
-	private static getRegexMatches(prefixes: Constants.IPrefix[], currentLine: string): boolean {
+	private getRegexMatches(prefixes: Constants.IPrefix[], currentLine: string): boolean {
 		const matches = prefixes.map(prefix => {
 			const match = prefix.regex.exec(currentLine);
 
@@ -40,7 +53,7 @@ export class TextProcessor {
 
 
 	// TODO: remove
-	public static getUserStoryLineIndices(allLines: string[]) {
+	public getUserStoryLineIndices(allLines: string[]) {
 		const results: number[] = [];
 
 		for (let i = 0; i < allLines.length; i++) {
@@ -52,7 +65,7 @@ export class TextProcessor {
 		return results;
 	}
 
-	public static getBugLineIndices(allLines: string[]) {
+	public getBugLineIndices(allLines: string[]): number[] {
 		const results: number[] = [];
 
 		for (let i = 0; i < allLines.length; i++) {
@@ -64,42 +77,37 @@ export class TextProcessor {
 		return results;
 	}
 
-	public static getIteration(allLines: string[], currentLine: number) {
-		const iterationInfo = TextProcessor.getIterationInfo(allLines, currentLine);
-		if (!iterationInfo) {
-			return;
-		}
-
-		return {
-			line: iterationInfo[0],
-			id: iterationInfo[1]
-		};
+	public getIteration(allLines: string[], currentLine: number): IterationTextInput | undefined {
+		return this.getIterationInfo(allLines, currentLine);
 	}
 
-	private static getIterationInfo(lines: string[], currentLine: number) {
+	private getIterationInfo(lines: string[], currentLine: number): IterationTextInput | undefined{
 		for (; currentLine >= 0; currentLine--) {
-			const id = TextProcessor.getIterationID(lines[currentLine]);
+			const id = this.getIterationID(lines[currentLine]);
 			if (id) {
-				return [currentLine, id];
+				return <IterationTextInput>{
+					line: currentLine,
+					id: id
+				};
 			}
 		}
 	}
 
-	private static getIterationID(line: string) {
+	private getIterationID(line: string) {
 		console.log('Getting Iteration Id');
 		const match = Constants.IterationRegex.exec(line);
 		return match !== null && match[1];
 	}
 
-	public static getWorkItemInfo(allLines: string[], currentLine: number, prefixes: Constants.IPrefix[]): WorkItemWithPrefix | undefined {
+	public getWorkItemInfo(allLines: string[], currentLine: number, prefixes: Constants.IPrefix[]): WorkItemTextInput | undefined {
 		const locationInfo = this.findWorkItemInfoPrefixLine(allLines, currentLine, prefixes);
 		if (!locationInfo) {
 			return;
 		}
 
-		const tasks = TextProcessor.getWorkItemTasksInfo(allLines, locationInfo.line + 1, locationInfo.prefix);
+		const tasks = this.getWorkItemTasksInfo(allLines, locationInfo.line + 1, locationInfo.prefix);
 
-		return <WorkItemWithPrefix>{
+		return <WorkItemTextInput>{
 			line: locationInfo.line,
 			prefix: locationInfo.prefix,
 			id: locationInfo.id,
@@ -108,7 +116,7 @@ export class TextProcessor {
 		};
 	}
 
-	private static findWorkItemInfoPrefixLine(lines: string[], currentLine: number, prefixes: Constants.IPrefix[]) {
+	private findWorkItemInfoPrefixLine(lines: string[], currentLine: number, prefixes: Constants.IPrefix[]) {
 		for (; currentLine >= 0; currentLine--) {
 			const matches = prefixes.map(prefix => {
 				const match = prefix.regex.exec(lines[currentLine]);
@@ -146,15 +154,15 @@ export class TextProcessor {
 	}
 
 	// TODO: remove
-	public static getUserStory(allLines: string[], currentLine: number) {
-		const userStoryInfo = TextProcessor.getUserStoryInfo(allLines, currentLine);
+	public getUserStory(allLines: string[], currentLine: number) {
+		const userStoryInfo = this.getUserStoryInfo(allLines, currentLine);
 		if (!userStoryInfo) {
 			return;
 		}
 
-		const tasks = TextProcessor.getTasksInfo(allLines, userStoryInfo.line + 1);
+		const tasks = this.getTasksInfo(allLines, userStoryInfo.line + 1);
 
-		return <WorkItem>{
+		return <WorkItemTextInput>{
 			line: userStoryInfo.line,
 			id: userStoryInfo.id,
 			title: userStoryInfo.title,
@@ -163,7 +171,7 @@ export class TextProcessor {
 	}
 
 	// TODO: remove
-	private static getUserStoryInfo(lines: string[], currentLine: number) {
+	private getUserStoryInfo(lines: string[], currentLine: number) {
 		for (; currentLine >= 0; currentLine--) {
 			const match = Constants.UserStoryAgile.regex.exec(lines[currentLine]);
 
@@ -179,15 +187,16 @@ export class TextProcessor {
 		}
 	}
 
-	public static getBug(allLines: string[], currentLine: number) {
-		const userStoryInfo = TextProcessor.getBugInfo(allLines, currentLine);
+	// TODO: remove
+	public getBug(allLines: string[], currentLine: number) {
+		const userStoryInfo = this.getBugInfo(allLines, currentLine);
 		if (!userStoryInfo) {
 			return;
 		}
 
-		const tasks = TextProcessor.getTasksInfo(allLines, userStoryInfo.line + 1);
+		const tasks = this.getTasksInfo(allLines, userStoryInfo.line + 1);
 
-		return <WorkItem>{
+		return <WorkItemTextInput>{
 			line: userStoryInfo.line,
 			id: userStoryInfo.id,
 			title: userStoryInfo.title,
@@ -195,7 +204,8 @@ export class TextProcessor {
 		};
 	}
 
-	private static getBugInfo(lines: string[], currentLine: number) {
+	// TODO: remove
+	private getBugInfo(lines: string[], currentLine: number) {
 		for (; currentLine >= 0; currentLine--) {
 			const match = Constants.Bug.regex.exec(lines[currentLine]);
 
@@ -211,13 +221,13 @@ export class TextProcessor {
 		}
 	}
 
-	private static getWorkItemTasksInfo(lines: string[], currentLine: number, prefix: Constants.IPrefix) {
+	private getWorkItemTasksInfo(lines: string[], currentLine: number, prefix: Constants.IPrefix) {
 		const firstTaskLine = currentLine;
 		let lastTaskLine = lines.length - 1;
 
 		// find work item breaking pattern
 		for (; currentLine < lines.length; currentLine++) {
-			if (TextProcessor.isEndOfWorkItem(lines[currentLine], prefix)) {
+			if (this.isEndOfWorkItem(lines[currentLine], prefix)) {
 				lastTaskLine = currentLine - 1;
 				break;
 			}
@@ -226,7 +236,7 @@ export class TextProcessor {
 		if (firstTaskLine <= lastTaskLine) {
 			const taskLines = lines.slice(firstTaskLine, lastTaskLine + 1);
 
-			const tasks: Task[] = [];
+			const tasks: TaskTextInput[] = [];
 			let description: string[] = [];
 			let activity = undefined;
 
@@ -260,13 +270,13 @@ export class TextProcessor {
 	}
 
 	// TODO: remove
-	private static getTasksInfo(lines: string[], currentLine: number) {
+	private getTasksInfo(lines: string[], currentLine: number) {
 		const firstTaskLine = currentLine;
 		let lastTaskLine = lines.length - 1;
 
 		// find user story breaking pattern
 		for (; currentLine < lines.length; currentLine++) {
-			if (TextProcessor.isEndOfUserStory(lines[currentLine]) || TextProcessor.isEndOfBug(lines[currentLine])) {
+			if (this.isEndOfUserStory(lines[currentLine]) || this.isEndOfBug(lines[currentLine])) {
 				lastTaskLine = currentLine - 1;
 				break;
 			}
@@ -275,7 +285,7 @@ export class TextProcessor {
 		if (firstTaskLine <= lastTaskLine) {
 			const taskLines = lines.slice(firstTaskLine, lastTaskLine + 1);
 
-			const tasks: Task[] = [];
+			const tasks: TaskTextInput[] = [];
 			let description: string[] = [];
 			let activity = undefined;
 
@@ -308,8 +318,8 @@ export class TextProcessor {
 		return [];
 	}
 
-	private static getTask(taskTitle: string, lineNo: number, activity?: string): Task {
-		const task = <Task>{};
+	private getTask(taskTitle: string, lineNo: number, activity?: string): TaskTextInput {
+		const task = <TaskTextInput>{};
 
 		taskTitle = taskTitle.replace(Constants.TaskPrefixRegex, '');
 
@@ -340,24 +350,24 @@ export class TextProcessor {
 		return task;
 	}
 
-	private static isEndOfWorkItem(line: string, prefix: Constants.IPrefix) {
+	private isEndOfWorkItem(line: string, prefix: Constants.IPrefix) {
 		let isEndOfUserStory = prefix.endRegex!.test(line) ||  prefix.regex.test(line);
 		return isEndOfUserStory;
 	}
 
 	// TODO: remove
-	private static isEndOfUserStory(line: string) {
+	private isEndOfUserStory(line: string) {
 		let isEndOfUserStory = Constants.UserStoryAgile.endRegex!.test(line) || Constants.UserStoryAgile.regex.test(line);
 		return isEndOfUserStory;
 	}
 
 	// TODO: remove
-	private static isEndOfBug(line: string) {
+	private isEndOfBug(line: string) {
 		let isEndOfUserStory = Constants.Bug.endRegex!.test(line) || Constants.Bug.regex.test(line);
 		return isEndOfUserStory;
 	}
 
-	private static isActivityLine = (line: string) => Constants.ActivityTypeLine.test(line);
-	private static isTaskDescriptionLine = (line: string) => Constants.TaskDescriptionRegex.test(line);
+	private isActivityLine = (line: string) => Constants.ActivityTypeLine.test(line);
+	private isTaskDescriptionLine = (line: string) => Constants.TaskDescriptionRegex.test(line);
 }
 

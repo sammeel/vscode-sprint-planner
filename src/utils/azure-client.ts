@@ -3,7 +3,7 @@ import * as vsc from 'vscode';
 
 import { IterationsResult } from '../models/azure-client/iterations';
 import { IterationWorkItemsResult } from '../models/azure-client/iterationsWorkItems';
-import { WorkItemInfoResult, WorkItemInfo } from '../models/azure-client/workItems';
+import { AzureWorkItemInfoResult, WorkItemInfo } from '../models/azure-client/workItems';
 import { FieldDefinition } from '../models/azure-client/fields';
 import { Logger } from './logger';
 import { Stopwatch } from './stopwatch';
@@ -150,7 +150,7 @@ export class AzureClient implements vsc.Disposable {
 		return result.data.allowedValues;
 	}
 
-	public async GetWorkItemInfos(userStoryIds: number[]): Promise<WorkItemInfoResult> {
+	public async GetWorkItemInfos(userStoryIds: number[]): Promise<AzureWorkItemInfoResult> {
 		const finish = this.logger.perf('Getting work items info...');
 
 		const params = <any>{
@@ -158,7 +158,7 @@ export class AzureClient implements vsc.Disposable {
 			'$expand': 'Relations'
 		};
 
-		const result = await this.client.get<WorkItemInfoResult>('/wit/workitems', { params });
+		const result = await this.client.get<AzureWorkItemInfoResult>('/wit/workitems', { params });
 		finish();
 
 		return result.data;
@@ -177,7 +177,7 @@ export class AzureClient implements vsc.Disposable {
 			fields: ['Microsoft.VSTS.Common.StackRank'].join(',')
 		};
 
-		const result = await this.client.get<WorkItemInfoResult>('/wit/workitems', { params });
+		const result = await this.client.get<AzureWorkItemInfoResult>('/wit/workitems', { params });
 		const stackRanks = result.data.value.map(t => t.fields["Microsoft.VSTS.Common.StackRank"]);
 
 		finish();

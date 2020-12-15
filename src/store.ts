@@ -4,8 +4,7 @@ import { UserStoryInfo, AzureClient, IterationInfo } from './utils/azure-client'
 import { Logger } from './utils/logger';
 import { Stopwatch } from './utils/stopwatch';
 import { Configuration } from './utils/config';
-import { TextProcessor } from './utils/textProcessor';
-import { WorkItem } from './models/task';
+import { ITextProcessor } from './utils/textProcessor';
 import { UserStoryInfoMapper } from './utils/mappers';
 
 const MissingUrlOrToken = "Missing URL or token in configuration";
@@ -19,28 +18,42 @@ export class SessionStore implements ISessionStore {
 	public iterations?: IterationInfo[];
 	public workItems?: UserStoryInfo[] = undefined;
 
-	constructor(private azureClient: AzureClient, private config: Configuration, private logger: Logger) {
+	constructor(private azureClient: AzureClient, private config: Configuration, private logger: Logger, private textProcessor: ITextProcessor) {
 	}
 
 	private async setCustomIteration(): Promise<void> {
 		const editor = vsc.window.activeTextEditor;
 
-		if (editor) {
-			const lines = editor.document.getText().split(Constants.NewLineRegex);
-			const it = TextProcessor.getIteration(lines, 0);
-			if (!it) {
-				this.customIteration = undefined;
-				this.logger.log('Iteration not specified - will default to @CurrentIteration');
-			} else {
-				this.customIteration = this.iterations!.find(x => x.id === it.id);
-				if (!this.customIteration) { return Promise.resolve(); }
+		if (!editor) {
+			return Promise.resolve();
+		}
 
+		const currentIteration = this.customIteration;
+
+		const lines = editor.document.getText().split(Constants.NewLineRegex);
+		const it = this.textProcessor.getIteration(lines, 0);
+		if (!it) {
+			this.customIteration = undefined;
+			this.logger.log('Iteration not specified - will default to @CurrentIteration');
+		} else {
+			this.customIteration = this.iterations!.find(x => x.id === it.id);
+			if (this.customIteration) {
 				this.logger.log(`Iteration set to ${this.customIteration.path.toString()}`);
 				vsc.window.setStatusBarMessage(`Iteration set to ${this.customIteration.path.toString()}`, 2000);
 			}
 		}
 
+		if (this.customIteration?.id !== currentIteration?.id ) {
+			// clear caching
+			this.logger.log(`Clearing cache as the iteration has changed`);
+			this.clearWorkItems();
+		}
+
 		return Promise.resolve();
+	}
+
+	private clearWorkItems(){
+		this.workItems = undefined;
 	}
 
 	async ensureHasActivityTypes(): Promise<void> {

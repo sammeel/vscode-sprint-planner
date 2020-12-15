@@ -1,6 +1,6 @@
 import { CollectionResult } from "./common";
 
-export interface WorkItemInfoResult extends CollectionResult<WorkItemInfo> {}
+export interface AzureWorkItemInfoResult extends CollectionResult<WorkItemInfo> {}
 
 export interface WorkItemInfo {
 	id:         number;

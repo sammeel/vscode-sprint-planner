@@ -1,11 +1,11 @@
 import * as vsc from "vscode";
 import { Commands, NewLineRegex } from "../constants";
-import { TextProcessor } from "../utils/textProcessor";
-import { Task } from "../models/task";
+import { ITextProcessor } from "../utils/textProcessor";
 import { PrefixService } from "../prefix-service";
+import { TaskTextInput } from "../models/textProcessor";
 
 export class PublishCodeLensProvider implements vsc.CodeLensProvider {
-  constructor(private prefixService: PrefixService) {}
+  constructor(private prefixService: PrefixService, private textProcessor: ITextProcessor) {}
 
   provideCodeLenses(_document: vsc.TextDocument, _token: vsc.CancellationToken): vsc.ProviderResult<vsc.CodeLens[]> {
     const editor = vsc.window.activeTextEditor!;
@@ -13,10 +13,10 @@ export class PublishCodeLensProvider implements vsc.CodeLensProvider {
 
     const prefixes = this.prefixService.getPrefixes();
 
-    const lineIndices = TextProcessor.getWorkItemLineIndices(lines, prefixes)    
+    const lineIndices = this.textProcessor.getWorkItemLineIndices(lines, prefixes)    
 
     const workItemResults = lineIndices.map((line) => {
-      const us = TextProcessor.getWorkItemInfo(lines, line, prefixes)!;
+      const us = this.textProcessor.getWorkItemInfo(lines, line, prefixes)!;
 
       return new vsc.CodeLens(new vsc.Range(line, 0, line, lines[line].length), {
         title: `Publish to Azure DevOps, ${this.buildExtraInfo(us)}`,
@@ -28,7 +28,7 @@ export class PublishCodeLensProvider implements vsc.CodeLensProvider {
     return workItemResults;
   }
 
-  private buildExtraInfo({ tasks }: { tasks: Task[] }) {
+  private buildExtraInfo({ tasks }: { tasks: TaskTextInput[] }) {
     const totalHours = tasks
       .filter((t) => t.estimation)
       .map((t) => t.estimation!)

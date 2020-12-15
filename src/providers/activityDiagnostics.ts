@@ -2,16 +2,16 @@ import * as vsc from 'vscode';
 import { LanguageId, NewLineRegex } from '../constants';
 import { ISessionStore } from '../store';
 import debounce from '../utils/debounce';
-import { TextProcessor } from '../utils/textProcessor';
-import { WorkItem } from '../models/task';
+import { ITextProcessor, TextProcessor } from '../utils/textProcessor';
 import { PrefixService } from '../prefix-service';
+import { WorkItemTextInput } from '../models/textProcessor';
 
 export class ActivityDiagnostics implements vsc.Disposable {
 	private collection: vsc.DiagnosticCollection;
 	private handler?: vsc.Disposable;
 	private decorations: vsc.TextEditorDecorationType[] = [];
 
-	constructor(private store: ISessionStore, private prefixService: PrefixService) {
+	constructor(private store: ISessionStore, private prefixService: PrefixService, private textProcessor: ITextProcessor) {
 		this.collection = vsc.languages.createDiagnosticCollection('activity-diagnostics');
 	}
 
@@ -56,8 +56,8 @@ export class ActivityDiagnostics implements vsc.Disposable {
 		const diagnostics: vsc.Diagnostic[] = [];
 		const textEditor = vsc.window.activeTextEditor;
 
-		const userStoryLines = TextProcessor.getWorkItemLineIndices(lines, this.prefixService.getPrefixes());
-		const userStories = userStoryLines.map(usLine => TextProcessor.getWorkItemInfo(lines, usLine, this.prefixService.getPrefixes())!);
+		const userStoryLines = this.textProcessor.getWorkItemLineIndices(lines, this.prefixService.getPrefixes());
+		const userStories = userStoryLines.map(usLine => this.textProcessor.getWorkItemInfo(lines, usLine, this.prefixService.getPrefixes())!);
 
 		for (let line = 0; line < lines.length; line++) {
 			const match = /^(\w+):$/.exec(lines[line]);
@@ -86,7 +86,7 @@ export class ActivityDiagnostics implements vsc.Disposable {
 		this.collection.set(document.uri, diagnostics);
 	}
 
-	private findUserStory(userStories: WorkItem[], line: number) {
+	private findUserStory(userStories: WorkItemTextInput[], line: number) {
 		for (let i = userStories.length - 1; i >= 0; i--) {
 			if (userStories[i].line < line) {
 				return userStories[i];
@@ -94,7 +94,7 @@ export class ActivityDiagnostics implements vsc.Disposable {
 		}
 	}
 
-	private createActivityDecoration(userStory: WorkItem, activity: string) {
+	private createActivityDecoration(userStory: WorkItemTextInput, activity: string) {
 		const stats = userStory.tasks.filter(t => t.activity === activity).reduce((acc, task) => {
 			acc.tasks++;
 			acc.hours += task.estimation || 0;

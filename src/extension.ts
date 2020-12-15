@@ -16,6 +16,7 @@ import { SnippetCompletionProvider } from './providers/snippetCompletionProvider
 import { WorkItemRequestBuilder } from './utils/workItemRequestBuilder';
 import { PrefixService } from './prefix-service';
 import { WorkItemCompletionProvider } from './providers/workItemCompletionProvider';
+import { TextProcessor } from './utils/textProcessor';
 
 const documentSelector = [
 	{ language: LanguageId, scheme: 'file' },
@@ -26,11 +27,12 @@ export function activate(context: vsc.ExtensionContext) {
 	const workItemRequestBuilder = new WorkItemRequestBuilder();
 	const logger = new Logger();
 	const config = new Configuration(logger);
+	const textProcessor = new TextProcessor();
 	const azureClient = new AzureClient(config, logger, workItemRequestBuilder);
-	const sessionStore = new SessionStore(azureClient, config, logger);
+	const sessionStore = new SessionStore(azureClient, config, logger, textProcessor);
 	const prefixService = new PrefixService(config);
 
-	const publishCommand = new PublishCommand(sessionStore, azureClient, logger, config, prefixService);
+	const publishCommand = new PublishCommand(sessionStore, azureClient, logger, config, prefixService, textProcessor);
 
 	vsc.workspace.onDidChangeConfiguration(() => {
 		console.log(vsc.workspace.getConfiguration('planner'));
@@ -38,7 +40,7 @@ export function activate(context: vsc.ExtensionContext) {
 
 	const alphabet = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 
-	const activityDiagnostics = new ActivityDiagnostics(sessionStore, prefixService);
+	const activityDiagnostics = new ActivityDiagnostics(sessionStore, prefixService, textProcessor);
 	activityDiagnostics.register();
 
 	context.subscriptions.push(...[
@@ -49,7 +51,7 @@ export function activate(context: vsc.ExtensionContext) {
 		vsc.languages.registerCompletionItemProvider(documentSelector, new SnippetCompletionProvider(config), ...alphabet),
 		vsc.languages.registerCompletionItemProvider(documentSelector, new IterationCompletionProvider(sessionStore, logger), '#'),
 		vsc.languages.registerCompletionItemProvider(documentSelector, new WorkItemCompletionProvider(sessionStore, logger, prefixService), '#'),
-		vsc.languages.registerCodeLensProvider(documentSelector, new PublishCodeLensProvider(prefixService)),
+		vsc.languages.registerCodeLensProvider(documentSelector, new PublishCodeLensProvider(prefixService, textProcessor)),
 		vsc.languages.registerCodeActionsProvider(documentSelector, new ActivityCodeActionProvider(sessionStore, logger)),
 		activityDiagnostics
 	]);

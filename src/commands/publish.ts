@@ -1,14 +1,14 @@
 import * as vsc from "vscode";
 import * as Constants from "../constants";
 import { WorkItemInfo } from "../models/azure-client/workItems";
-import { WorkItemWithPrefix, WorkItem, Task } from "../models/task";
+import { TaskTextInput, WorkItemTextInput } from "../models/textProcessor";
 import { PrefixService } from "../prefix-service";
 import { ISessionStore } from "../store";
 import { AzureClient, UserStoryInfo, TaskInfo } from "../utils/azure-client";
 import { Configuration } from "../utils/config";
 import { Logger } from "../utils/logger";
 import { UserStoryInfoMapper } from "../utils/mappers";
-import { TextProcessor } from "../utils/textProcessor";
+import { ITextProcessor, TextProcessor } from "../utils/textProcessor";
 import { LockableCommand } from "./lockableCommand";
 
 export class PublishCommand extends LockableCommand {
@@ -17,7 +17,8 @@ export class PublishCommand extends LockableCommand {
     protected client: AzureClient,
     protected logger: Logger,
     protected config: Configuration,
-    protected prefixService: PrefixService
+    protected prefixService: PrefixService,
+    protected textProcessor: ITextProcessor
   ) {
     super();
   }
@@ -26,7 +27,7 @@ export class PublishCommand extends LockableCommand {
     return await this.client.createWorkItem(title, iterationPath, prefix.workItemType);
   }
 
-  protected async getWorkItemInfo(workItem: WorkItemWithPrefix | WorkItemInfo): Promise<UserStoryInfo | undefined> {
+  protected async getWorkItemInfo(workItem: WorkItemTextInput | WorkItemInfo): Promise<UserStoryInfo | undefined> {
     if (this.isWorkItem(workItem)) {
       await this.sessionStore.ensureHasItemsOfWorkItemType(workItem.prefix);
 
@@ -43,8 +44,8 @@ export class PublishCommand extends LockableCommand {
     }
   }
 
-  private isWorkItem(workItem: WorkItem | WorkItemInfo): workItem is WorkItem {
-    return (workItem as WorkItem).line !== undefined;
+  private isWorkItem(workItem: WorkItemTextInput | WorkItemInfo): workItem is WorkItemTextInput {
+    return (workItem as WorkItemTextInput).line !== undefined;
   }
 
   async publish(line?: number) {
@@ -61,7 +62,7 @@ export class PublishCommand extends LockableCommand {
         let currentLine = line !== undefined ? line : editor.selection.active.line;
         const lines = editor.document.getText().split(Constants.NewLineRegex);
 
-        const workItem = TextProcessor.getWorkItemInfo(lines, currentLine, this.prefixService.getPrefixes());
+        const workItem = this.textProcessor.getWorkItemInfo(lines, currentLine, this.prefixService.getPrefixes());
         if (!workItem) {
           return console.log(`Cannot find work item on that line`);
         }
@@ -115,7 +116,7 @@ export class PublishCommand extends LockableCommand {
     this.unlock();
   }
 
-  private showSummary(usId: number, tasks: Task[], prefix: Constants.IPrefix) {
+  private showSummary(usId: number, tasks: TaskTextInput[], prefix: Constants.IPrefix) {
     const updatedTasks = tasks.filter((x) => !!x.id).length;
     const createdTasks = tasks.length - updatedTasks;
 
@@ -124,7 +125,7 @@ export class PublishCommand extends LockableCommand {
     );
   }
 
-  private validateWorkItem(workItem: WorkItem) {
+  private validateWorkItem(workItem: WorkItemTextInput) {
     let createUserStory = !workItem.id;
 
     const taskIds = workItem.tasks.filter((t) => t.id).map((t) => t.id!.toString());
@@ -146,7 +147,7 @@ export class PublishCommand extends LockableCommand {
     }
   }
 
-  private async updateEditor(editor: vsc.TextEditor, workItem: WorkItem, taskIds: number[], createdUserStoryId?: number) {
+  private async updateEditor(editor: vsc.TextEditor, workItem: WorkItemTextInput, taskIds: number[], createdUserStoryId?: number) {
     await editor.edit((edit: vsc.TextEditorEdit) => {
       if (createdUserStoryId) {
         // Format of the line: US#new - <title>
@@ -173,7 +174,7 @@ export class PublishCommand extends LockableCommand {
     return m && parseInt(m[1]);
   }
 
-  private buildTaskInfo(task: Task, userStory: UserStoryInfo, stackRank?: number): TaskInfo {
+  private buildTaskInfo(task: TaskTextInput, userStory: UserStoryInfo, stackRank?: number): TaskInfo {
     return {
       id: task.id,
       title: task.title,
