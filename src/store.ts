@@ -1,11 +1,12 @@
 import * as vsc from 'vscode';
 import * as Constants from './constants';
-import { UserStoryInfo, AzureClient, IterationInfo } from './utils/azure-client';
+import { UserStoryInfo, AzureClient, IterationInfo, IAzureClient } from './utils/azure-client';
 import { Logger } from './utils/logger';
 import { Stopwatch } from './utils/stopwatch';
 import { Configuration } from './utils/config';
 import { ITextProcessor } from './utils/textProcessor';
 import { UserStoryInfoMapper } from './utils/mappers';
+import { VsCodeTextEditorService } from './vsCodeTextEditorService';
 
 const MissingUrlOrToken = "Missing URL or token in configuration";
 
@@ -18,19 +19,26 @@ export class SessionStore implements ISessionStore {
 	public iterations?: IterationInfo[];
 	public workItems?: UserStoryInfo[] = undefined;
 
-	constructor(private azureClient: AzureClient, private config: Configuration, private logger: Logger, private textProcessor: ITextProcessor) {
+	constructor(private azureClient: IAzureClient, 
+		private config: Configuration, 
+		private logger: Logger, 
+		private textProcessor: ITextProcessor, 
+		private vsCodeTextEditorService: VsCodeTextEditorService) 
+	{
 	}
 
-	private async setCustomIteration(): Promise<void> {
-		const editor = vsc.window.activeTextEditor;
-
-		if (!editor) {
-			return Promise.resolve();
+	private setCustomIteration(): void {
+		if (!this.vsCodeTextEditorService.hasActiveEditor()) {
+			return;
 		}
 
 		const currentIteration = this.customIteration;
 
-		const lines = editor.document.getText().split(Constants.NewLineRegex);
+		const lines = this.vsCodeTextEditorService.getEditorText()?.split(Constants.NewLineRegex);
+		if (lines == null) {
+			return;
+		}
+
 		const it = this.textProcessor.getIteration(lines, 0);
 		if (!it) {
 			this.customIteration = undefined;
@@ -48,8 +56,6 @@ export class SessionStore implements ISessionStore {
 			this.logger.log(`Clearing cache as the iteration has changed`);
 			this.clearWorkItems();
 		}
-
-		return Promise.resolve();
 	}
 
 	private clearWorkItems(){
@@ -122,7 +128,7 @@ export class SessionStore implements ISessionStore {
 			.map(UserStoryInfoMapper.fromWorkItemInfo);
 	}
 
-	public async determineIteration() {
+	public async determineIteration(): Promise<IterationInfo> {
 		this.setCustomIteration();
 
 		if (!this.customIteration) {

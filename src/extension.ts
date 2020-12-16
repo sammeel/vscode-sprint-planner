@@ -17,6 +17,7 @@ import { WorkItemRequestBuilder } from './utils/workItemRequestBuilder';
 import { PrefixService } from './prefix-service';
 import { WorkItemCompletionProvider } from './providers/workItemCompletionProvider';
 import { TextProcessor } from './utils/textProcessor';
+import { VsCodeTextEditorService } from './vsCodeTextEditorService';
 
 const documentSelector = [
 	{ language: LanguageId, scheme: 'file' },
@@ -29,7 +30,8 @@ export function activate(context: vsc.ExtensionContext) {
 	const config = new Configuration(logger);
 	const textProcessor = new TextProcessor();
 	const azureClient = new AzureClient(config, logger, workItemRequestBuilder);
-	const sessionStore = new SessionStore(azureClient, config, logger, textProcessor);
+	const vsCodeTextEditorService = new VsCodeTextEditorService();
+	const sessionStore = new SessionStore(azureClient, config, logger, textProcessor, vsCodeTextEditorService);
 	const prefixService = new PrefixService(config);
 
 	const publishCommand = new PublishCommand(sessionStore, azureClient, logger, config, prefixService, textProcessor);

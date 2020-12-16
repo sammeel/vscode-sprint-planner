@@ -1,331 +1,293 @@
-import axios, { AxiosInstance, AxiosResponse } from 'axios';
-import * as vsc from 'vscode';
+import axios, { AxiosInstance, AxiosResponse } from "axios";
+import * as vsc from "vscode";
 
-import { IterationsResult } from '../models/azure-client/iterations';
-import { IterationWorkItemsResult } from '../models/azure-client/iterationsWorkItems';
-import { AzureWorkItemInfoResult, WorkItemInfo } from '../models/azure-client/workItems';
-import { FieldDefinition } from '../models/azure-client/fields';
-import { Logger } from './logger';
-import { Stopwatch } from './stopwatch';
-import { Configuration } from './config';
-import { WorkItemRequestBuilder } from './workItemRequestBuilder';
-import { UserStoryInfoMapper } from './mappers';
+import { IterationsResult } from "../models/azure-client/iterations";
+import { IterationWorkItemsResult } from "../models/azure-client/iterationsWorkItems";
+import { AzureWorkItemInfoResult, WorkItemInfo } from "../models/azure-client/workItems";
+import { FieldDefinition } from "../models/azure-client/fields";
+import { Logger } from "./logger";
+import { Stopwatch } from "./stopwatch";
+import { Configuration } from "./config";
+import { WorkItemRequestBuilder } from "./workItemRequestBuilder";
 
-export class AzureClient implements vsc.Disposable {
-	private _apiVersionPreview = {
-		'api-version': '5.0-preview.1'
-	};
+export interface IAzureClient {
+  getIterationsInfo(): Promise<IterationInfo[]>;
+  getCurrentIterationInfo(): Promise<IterationInfo>;
+  getIterationWorkItems(iterationId: string): Promise<UserStoryIdentifier[]>;
+  getActivityTypes(): Promise<string[]>;
+  GetWorkItemInfos(userStoryIds: number[]): Promise<AzureWorkItemInfoResult>;
+  getMaxTaskStackRank(taskIds: number[]): Promise<number>;
+  createWorkItem(title: string, iterationPath: string, workItemType: string): Promise<WorkItemInfo>;
+  createOrUpdateTask(task: TaskInfo): Promise<number>;
+}
 
-	client!: AxiosInstance;
-	teamClient!: AxiosInstance;
-	_eventHandler: vsc.Disposable;
-	_interceptors: number[] = [];
+export class AzureClient implements IAzureClient, vsc.Disposable {
+  private _apiVersionPreview = {
+    "api-version": "5.0-preview.1",
+  };
 
-	constructor(private config: Configuration, private logger: Logger, private workItemRequestBuilder: WorkItemRequestBuilder) {
-		this.recreateClient();
+  client!: AxiosInstance;
+  teamClient!: AxiosInstance;
+  _eventHandler: vsc.Disposable;
+  _interceptors: number[] = [];
 
-		this._eventHandler = config.onDidChange(newConfig => {
-			this.config = newConfig;
-			this.recreateClient();
-		});
-	}
+  constructor(private config: Configuration, private logger: Logger, private workItemRequestBuilder: WorkItemRequestBuilder) {
+    this.recreateClient();
 
-	dispose() {
-		this._eventHandler.dispose();
-	}
+    this._eventHandler = config.onDidChange((newConfig) => {
+      this.config = newConfig;
+      this.recreateClient();
+    });
+  }
 
-	private recreateClient() {
-		if (this._interceptors.length > 0) {
-			this._interceptors.forEach(id => {
-				this.client.interceptors.response.eject(id);
-				this.teamClient.interceptors.response.eject(id);
-			});
-			this._interceptors = [];
-		}
+  dispose() {
+    this._eventHandler.dispose();
+  }
 
-		let organization = encodeURIComponent(this.config.organization!);
-		let project = encodeURIComponent(this.config.project!);
-		let team = encodeURIComponent(this.config.team!);
+  private recreateClient() {
+    if (this._interceptors.length > 0) {
+      this._interceptors.forEach((id) => {
+        this.client.interceptors.response.eject(id);
+        this.teamClient.interceptors.response.eject(id);
+      });
+      this._interceptors = [];
+    }
 
-		const clientFactory = (baseUrl: string) => {
-			const client = axios.create({
-				baseURL: baseUrl,
-				auth: {
-					username: "PAT",
-					password: this.config.token || ""
-				},
-				headers: {
-					'Accept': 'application/json; api-version=5.0'
-				},
-				validateStatus: status => status === 200
-			});
+    let organization = encodeURIComponent(this.config.organization!);
+    let project = encodeURIComponent(this.config.project!);
+    let team = encodeURIComponent(this.config.team!);
 
-			if (this.config.debug) {
-				const id = client.interceptors.response.use(
-					res => this.logRequest(res.request, res),
-					err => this.logRequest(err.request, Promise.reject(err), err.response)
-				);
-				this._interceptors.push(id);
-			}
+    const clientFactory = (baseUrl: string) => {
+      const client = axios.create({
+        baseURL: baseUrl,
+        auth: {
+          username: "PAT",
+          password: this.config.token || "",
+        },
+        headers: {
+          Accept: "application/json; api-version=5.0",
+        },
+        validateStatus: (status) => status === 200,
+      });
 
-			return client;
-		};
+      if (this.config.debug) {
+        const id = client.interceptors.response.use(
+          (res) => this.logRequest(res.request, res),
+          (err) => this.logRequest(err.request, Promise.reject(err), err.response)
+        );
+        this._interceptors.push(id);
+      }
 
-		this.client = clientFactory(`https://dev.azure.com/${organization}/${project}/_apis/`);
-		this.teamClient = clientFactory(`https://dev.azure.com/${organization}/${project}/${team}/_apis/`);
-	}
+      return client;
+    };
 
-	private logRequest(request: any, returnValue: any, response?: AxiosResponse) {
-		console.log(`[DEBUG] ${request.method!.toUpperCase()} ${request.path}`);
-		if (response) {
-			console.log(`[DEBUG] Response: ${JSON.stringify(response.data)}`);
-		}
-		return returnValue;
-	}
+    this.client = clientFactory(`https://dev.azure.com/${organization}/${project}/_apis/`);
+    this.teamClient = clientFactory(`https://dev.azure.com/${organization}/${project}/${team}/_apis/`);
+  }
 
-	public async getIterationsInfo(): Promise<IterationInfo[]> {
-		const finish = this.logger.perf('Getting iterations info...');
-		const result = await this.teamClient.get<IterationsResult>("/work/teamsettings/iterations");
-		finish();
+  private logRequest(request: any, returnValue: any, response?: AxiosResponse) {
+    console.log(`[DEBUG] ${request.method!.toUpperCase()} ${request.path}`);
+    if (response) {
+      console.log(`[DEBUG] Response: ${JSON.stringify(response.data)}`);
+    }
+    return returnValue;
+  }
 
-		if (result.data.count > 0) {
-			let iterations: IterationInfo[] = [];
-			result.data.value.forEach(element => {
-				const iteration = <IterationInfo>{
-					id: element.id,
-					name: element.name,
-					path: element.path
-				};
-				iterations.push(iteration);
-			});
+  public async getIterationsInfo(): Promise<IterationInfo[]> {
+    const finish = this.logger.perf("Getting iterations info...");
+    const result = await this.teamClient.get<IterationsResult>("/work/teamsettings/iterations");
+    finish();
 
-			return iterations;
+    if (result.data.count > 0) {
+      let iterations: IterationInfo[] = [];
+      result.data.value.forEach((element) => {
+        const iteration = <IterationInfo>{
+          id: element.id,
+          name: element.name,
+          path: element.path,
+        };
+        iterations.push(iteration);
+      });
 
-		}
+      return iterations;
+    }
 
-		throw new Error("Iterations not found");
-	}
+    throw new Error("Iterations not found");
+  }
 
-	public async getCurrentIterationInfo(): Promise<IterationInfo> {
-		const finish = this.logger.perf('Getting current iteration info...');
-		const result = await this.teamClient.get<IterationsResult>("/work/teamsettings/iterations?$timeframe=current");
-		finish();
+  public async getCurrentIterationInfo(): Promise<IterationInfo> {
+    const finish = this.logger.perf("Getting current iteration info...");
+    const result = await this.teamClient.get<IterationsResult>("/work/teamsettings/iterations?$timeframe=current");
+    finish();
 
-		if (result.data.count > 0) {
-			const iteration = result.data.value[0];
-			return <IterationInfo>{
-				id: iteration.id,
-				name: iteration.name,
-				path: iteration.path
-			};
-		}
+    if (result.data.count > 0) {
+      const iteration = result.data.value[0];
+      return <IterationInfo>{
+        id: iteration.id,
+        name: iteration.name,
+        path: iteration.path,
+      };
+    }
 
-		throw new Error("Current iteration not found");
-	}
+    throw new Error("Current iteration not found");
+  }
 
-	public async getIterationWorkItems(iterationId: string): Promise<UserStoryIdentifier[]> {
-		const finish = this.logger.perf('Getting user stories for iteration...');
-		const result = await this.teamClient.get<IterationWorkItemsResult>(`/work/teamsettings/iterations/${iterationId}/workitems`, {
-			params: {
-				...this._apiVersionPreview
-			}
-		});
+  public async getIterationWorkItems(iterationId: string): Promise<UserStoryIdentifier[]> {
+    const finish = this.logger.perf("Getting user stories for iteration...");
+    const result = await this.teamClient.get<IterationWorkItemsResult>(`/work/teamsettings/iterations/${iterationId}/workitems`, {
+      params: {
+        ...this._apiVersionPreview,
+      },
+    });
 
-		finish();
+    finish();
 
-		return result.data.workItemRelations.filter(x => x.rel === null).map(x => (
-			<UserStoryIdentifier>{
-				id: x.target.id,
-				url: x.target.url
-			}
-		));
-	}
+    return result.data.workItemRelations
+      .filter((x) => x.rel === null)
+      .map(
+        (x) =>
+          <UserStoryIdentifier>{
+            id: x.target.id,
+            url: x.target.url,
+          }
+      );
+  }
 
-	public async getActivityTypes(): Promise<string[]> {
-		const finish = this.logger.perf('Getting activity types...');
-		const result = await this.client.get<FieldDefinition>(`/wit/workitemtypes/Task/fields/Microsoft.VSTS.Common.Activity?$expand=All`);
+  public async getActivityTypes(): Promise<string[]> {
+    const finish = this.logger.perf("Getting activity types...");
+    const result = await this.client.get<FieldDefinition>(`/wit/workitemtypes/Task/fields/Microsoft.VSTS.Common.Activity?$expand=All`);
 
-		finish();
+    finish();
 
-		return result.data.allowedValues;
-	}
+    return result.data.allowedValues;
+  }
 
-	public async GetWorkItemInfos(userStoryIds: number[]): Promise<AzureWorkItemInfoResult> {
-		const finish = this.logger.perf('Getting work items info...');
+  public async GetWorkItemInfos(userStoryIds: number[]): Promise<AzureWorkItemInfoResult> {
+    const finish = this.logger.perf("Getting work items info...");
 
-		const params = <any>{
-			ids: userStoryIds.join(','),
-			'$expand': 'Relations'
-		};
+    const params = <any>{
+      ids: userStoryIds.join(","),
+      $expand: "Relations",
+    };
 
-		const result = await this.client.get<AzureWorkItemInfoResult>('/wit/workitems', { params });
-		finish();
+    const result = await this.client.get<AzureWorkItemInfoResult>("/wit/workitems", { params });
+    finish();
 
-		return result.data;
-	}
+    return result.data;
+  }
 
-	public async getMaxTaskStackRank(taskIds: number[]): Promise<number> {
-		if (taskIds.length === 0) {
-			this.logger.log('No tasks in User Story -> Stack Rank = 0');
-			return 0;
-		}
+  public async getMaxTaskStackRank(taskIds: number[]): Promise<number> {
+    if (taskIds.length === 0) {
+      this.logger.log("No tasks in User Story -> Stack Rank = 0");
+      return 0;
+    }
 
-		const finish = this.logger.perf('Getting max stack rank for tasks...');
+    const finish = this.logger.perf("Getting max stack rank for tasks...");
 
-		const params: any = {
-			ids: taskIds.join(','),
-			fields: ['Microsoft.VSTS.Common.StackRank'].join(',')
-		};
+    const params: any = {
+      ids: taskIds.join(","),
+      fields: ["Microsoft.VSTS.Common.StackRank"].join(","),
+    };
 
-		const result = await this.client.get<AzureWorkItemInfoResult>('/wit/workitems', { params });
-		const stackRanks = result.data.value.map(t => t.fields["Microsoft.VSTS.Common.StackRank"]);
+    const result = await this.client.get<AzureWorkItemInfoResult>("/wit/workitems", { params });
+    const stackRanks = result.data.value.map((t) => t.fields["Microsoft.VSTS.Common.StackRank"]);
 
-		finish();
+    finish();
 
-		const max = stackRanks.reduce((acc, current) => {
-			acc = Math.max(acc, current || 0);
-			return acc;
-		}, 0);
+    const max = stackRanks.reduce((acc, current) => {
+      acc = Math.max(acc, current || 0);
+      return acc;
+    }, 0);
 
-		this.logger.log(`Max Stack Rank: ${max}`);
+    this.logger.log(`Max Stack Rank: ${max}`);
 
-		return max;
-	}
+    return max;
+  }
 
-	public createOrUpdateTask(task: TaskInfo): Promise<number> {
-		const createNewTask = !task.id;
+  public createOrUpdateTask(task: TaskInfo): Promise<number> {
+    const createNewTask = !task.id;
 
-		const buildRequest = createNewTask ? this.workItemRequestBuilder.createTaskRequest : this.workItemRequestBuilder.updateTaskRequest;
-		const request = buildRequest.call(this.workItemRequestBuilder, task);
+    const buildRequest = createNewTask ? this.workItemRequestBuilder.createTaskRequest : this.workItemRequestBuilder.updateTaskRequest;
+    const request = buildRequest.call(this.workItemRequestBuilder, task);
 
-		if (createNewTask) {
-			this.logger.log(`Creating task: ${task.title}...`);
-		} else {
-			this.logger.log(`Updating task #${task.id}: ${task.title}...`);
-		}
-		let stopwatch = Stopwatch.startNew();
+    if (createNewTask) {
+      this.logger.log(`Creating task: ${task.title}...`);
+    } else {
+      this.logger.log(`Updating task #${task.id}: ${task.title}...`);
+    }
+    let stopwatch = Stopwatch.startNew();
 
-		const func = createNewTask ? this.client.post : this.client.patch;
-		const url = createNewTask ? '/wit/workitems/$Task' : `/wit/workitems/${task.id}`;
+    const func = createNewTask ? this.client.post : this.client.patch;
+    const url = createNewTask ? "/wit/workitems/$Task" : `/wit/workitems/${task.id}`;
 
-		return func<WorkItemInfo>(
-			url, request, {
-			headers: {
-				'Content-Type': 'application/json-patch+json'
-			}
-		}).then(res => {
-			this.logger.log(`#${res.data.id} Task '${task.title}' ${createNewTask ? 'created' : 'updated'} (${stopwatch.toString()})`);
-			return res.data.id;
-		})
-			.catch(err => {
-				console.error(err);
-				return Promise.reject(err);
-			});
-	}
+    return func<WorkItemInfo>(url, request, {
+      headers: {
+        "Content-Type": "application/json-patch+json",
+      },
+    })
+      .then((res) => {
+        this.logger.log(`#${res.data.id} Task '${task.title}' ${createNewTask ? "created" : "updated"} (${stopwatch.toString()})`);
+        return res.data.id;
+      })
+      .catch((err) => {
+        console.error(err);
+        return Promise.reject(err);
+      });
+  }
 
-	public createUserStory(title: string, iterationPath: string): Promise<WorkItemInfo> {
-		const request = this.workItemRequestBuilder.createUserStory(title, iterationPath);
+  public createWorkItem(title: string, iterationPath: string, workItemType: string): Promise<WorkItemInfo> {
+    const request = this.workItemRequestBuilder.createUserStory(title, iterationPath);
 
-		const workItemType = encodeURIComponent(this.getUserStoryWorkItemType());
+    this.logger.log(`Creating Bug: ${title}...`);
+    let stopwatch = Stopwatch.startNew();
 
-		this.logger.log(`Creating User Story: ${title}...`);
-		let stopwatch = Stopwatch.startNew();
-
-		return this.client.post<WorkItemInfo>(
-			`/wit/workitems/$${workItemType}`, request, {
-			headers: {
-				'Content-Type': 'application/json-patch+json'
-			}
-		}).then(res => {
-			this.logger.log(`#${res.data.id} User story '${title}' created (${stopwatch.toString()})`);
-			return res.data;
-		}).catch(err => {
-			console.error(err);
-			return Promise.reject(err);
-		});
-	}
-
-	private getUserStoryWorkItemType() {
-		switch (this.config.process) {
-			case "Agile": return "User Story";
-			case "Scrum": return "Product Backlog Item";
-			default: throw new Error("Process type not supported");
-		}
-	}
-
-	public createBug(title: string, iterationPath: string): Promise<WorkItemInfo> {
-		const request = this.workItemRequestBuilder.createUserStory(title, iterationPath);
-
-		const workItemType = encodeURIComponent("Bug");
-
-		this.logger.log(`Creating Bug: ${title}...`);
-		let stopwatch = Stopwatch.startNew();
-
-		return this.client.post<WorkItemInfo>(
-			`/wit/workitems/$${workItemType}`, request, {
-			headers: {
-				'Content-Type': 'application/json-patch+json'
-			}
-		}).then(res => {
-			this.logger.log(`#${res.data.id} Bug '${title}' created (${stopwatch.toString()})`);
-			return res.data;
-		}).catch(err => {
-			console.error(err);
-			return Promise.reject(err);
-		});
-	}
-
-	public createWorkItem(title: string, iterationPath: string, workItemType: string): Promise<WorkItemInfo> {
-		const request = this.workItemRequestBuilder.createUserStory(title, iterationPath);
-
-		this.logger.log(`Creating Bug: ${title}...`);
-		let stopwatch = Stopwatch.startNew();
-
-		return this.client.post<WorkItemInfo>(
-			`/wit/workitems/$${workItemType}`, request, {
-			headers: {
-				'Content-Type': 'application/json-patch+json'
-			}
-		}).then(res => {
-			this.logger.log(`#${res.data.id} ${workItemType} '${title}' created (${stopwatch.toString()})`);
-			return res.data;
-		}).catch(err => {
-			console.error(err);
-			return Promise.reject(err);
-		});
-	}
+    return this.client
+      .post<WorkItemInfo>(`/wit/workitems/$${workItemType}`, request, {
+        headers: {
+          "Content-Type": "application/json-patch+json",
+        },
+      })
+      .then((res) => {
+        this.logger.log(`#${res.data.id} ${workItemType} '${title}' created (${stopwatch.toString()})`);
+        return res.data;
+      })
+      .catch((err) => {
+        console.error(err);
+        return Promise.reject(err);
+      });
+  }
 }
 
 export interface IterationInfo {
-	id: string;
-	name: string;
-	path: string;
+  id: string;
+  name: string;
+  path: string;
 }
 
 export interface UserStoryIdentifier {
-	id: number;
-	url: string;
+  id: number;
+  url: string;
 }
 
 export interface UserStoryInfo {
-	id: number;
-	url: string;
-	title: string;
-	areaPath: string;
-	teamProject: string;
-	iterationPath: string;
-	taskUrls: string[];
+  id: number;
+  url: string;
+  title: string;
+  areaPath: string;
+  teamProject: string;
+  iterationPath: string;
+  taskUrls: string[];
 }
 
 export interface TaskInfo {
-	id?: number;
-	title: string;
-	description?: string[];
-	areaPath: string;
-	teamProject: string;
-	iterationPath: string;
-	activity: string;
-	estimation?: number;
-	userStoryUrl: string;
-	stackRank?: number;
+  id?: number;
+  title: string;
+  description?: string[];
+  areaPath: string;
+  teamProject: string;
+  iterationPath: string;
+  activity: string;
+  estimation?: number;
+  userStoryUrl: string;
+  stackRank?: number;
 }

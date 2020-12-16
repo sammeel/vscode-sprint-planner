@@ -1,11 +1,105 @@
-// var expect = require('expect.js') as (target?: any) => Expect.Root;
-// import { SessionStore } from '../store';
+import { promises } from "fs";
+import * as Constants from "../constants";
+import { Session } from "inspector";
+import * as vsc from "vscode";
+import { AzureWorkItemInfoResult, WorkItemInfo } from "../models/azure-client/workItems";
+var expect = require("expect.js") as (target?: any) => Expect.Root;
+import { SessionStore } from "../store";
+import { AzureClient, IAzureClient, IterationInfo, TaskInfo, UserStoryIdentifier } from "../utils/azure-client";
+import { Configuration } from "../utils/config";
+import { Logger } from "../utils/logger";
+import { ITextProcessor, TextProcessor } from "../utils/textProcessor";
+import { IVsCodeTextEditorService, VsCodeTextEditorService } from "../vsCodeTextEditorService";
+import * as sinon from "sinon";
 
-// describe("Given SessionStore", function () {
+describe("Given SessionStore", function () {
+  let store: SessionStore;
+  let azureClient: IAzureClient;
+  let config: Configuration;
+  let textProcessor: ITextProcessor;
+  let vsCodeTextEditorService: IVsCodeTextEditorService;
+
+  beforeEach(() => {
+    azureClient = {
+      getIterationsInfo: () => Promise.resolve([]),
+      getCurrentIterationInfo: () => Promise.resolve(<IterationInfo>{}),
+      getIterationWorkItems: (iterationId: string) => Promise.resolve([]),
+      getActivityTypes: () => Promise.resolve([]),
+      GetWorkItemInfos: (userStoryIds: number[]) => Promise.resolve(<AzureWorkItemInfoResult>{}),
+      getMaxTaskStackRank: (taskIds: number[]) => Promise.resolve(-1),
+      createWorkItem: (title: string, iterationPath: string, workItemType: string) => Promise.resolve(<WorkItemInfo>{}),
+      createOrUpdateTask: (task: TaskInfo) => Promise.resolve(-1),
+    };
+
+    const logger = new Logger();
+
+    config = new Configuration(logger);
+
+    textProcessor = {
+      getWorkItemLineIndices: (allLines: string[], prefixes: Constants.IPrefix[]) => [],
+      getIteration: (allLines: string[], currentLine: number) => undefined,
+      getWorkItemInfo: (allLines: string[], currentLine: number, prefixes: Constants.IPrefix[]) => undefined,
+
+      // TODO: remove
+      getUserStoryLineIndices: (allLines: string[]) => undefined,
+      getUserStory: (allLines: string[], currentLine: number) => undefined,
+      getBugLineIndices: (allLines: string[]) => [],
+      getBug: (allLines: string[], currentLine: number) => undefined,
+    };
+
+    vsCodeTextEditorService = {
+      hasActiveEditor: () => true,
+      getEditorText: () => undefined,
+    };
+
+    store = new SessionStore(azureClient, config, logger, textProcessor, vsCodeTextEditorService);
+  });
+
+  describe("determineIteration", function () {
+    it("should return the azure client current iteration when editorText is undefined", async () => {
+      const iterationInfo: IterationInfo = {
+        id: "1",
+        name: "my name",
+        path: "my/path",
+      };
+
+      azureClient.getCurrentIterationInfo = () => Promise.resolve(iterationInfo);
+
+      const azureClientSpy = sinon.spy(azureClient, "getCurrentIterationInfo");
+
+      vsCodeTextEditorService.getEditorText = () => undefined;
+
+      const result = await store.determineIteration();
+
+      expect(azureClientSpy.calledOnce).to.be(true);
+      expect(result).to.be(iterationInfo);
+    });
+
+    it("should call the azure client only once to get the curren iteration when called multiple times", async () => {
+        const iterationInfo: IterationInfo = {
+          id: "1",
+          name: "my name",
+          path: "my/path",
+        };
+  
+        azureClient.getCurrentIterationInfo = () => Promise.resolve(iterationInfo);
+  
+        const azureClientSpy = sinon.spy(azureClient, "getCurrentIterationInfo");
+  
+        vsCodeTextEditorService.getEditorText = () => undefined;
+  
+        const result = await store.determineIteration();
+        const result2 = await store.determineIteration();
+  
+        expect(azureClientSpy.calledOnce).to.be(true);
+        expect(result).to.be(iterationInfo);
+        expect(result).to.be(result2);
+      });
+  });
+});
 // 	describe('determineIteration', function() {
 // 		it("when calling should set the correct iteration", function () {
 //             const lines = ""
-			
 
 // 			expect(results).to.be.eql([0, 1, 2, 4, 7]);
 // 		});
