@@ -27,7 +27,7 @@ export class SessionStore implements ISessionStore {
 	{
 	}
 
-	private setCustomIteration(): void {
+	private async setCustomIteration(): Promise<void> {
 		if (!this.vsCodeTextEditorService.hasActiveEditor()) {
 			return;
 		}
@@ -44,6 +44,7 @@ export class SessionStore implements ISessionStore {
 			this.customIteration = undefined;
 			this.logger.log('Iteration not specified - will default to @CurrentIteration');
 		} else {
+			await this.ensureHasIterations();
 			this.customIteration = this.iterations!.find(x => x.id === it.id);
 			if (this.customIteration) {
 				this.logger.log(`Iteration set to ${this.customIteration.path.toString()}`);

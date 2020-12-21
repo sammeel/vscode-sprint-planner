@@ -4,20 +4,6 @@ import { IterationTextInput } from '../models/textProcessor';
 import { TextProcessor } from '../utils/textProcessor';
 
 describe("Given TextProcessor", function () {
-	const lines = [
-		'US#1',
-		'US#2',
-		'US#3',
-		'',
-		'US#4',
-		'BUG#7',
-		'',
-		'US#5',
-		'',
-		'BUG#8',
-		'BUG#9'
-	];
-
 	let textProcessor: TextProcessor;
 	let prefixes: Constants.IPrefix[];
 

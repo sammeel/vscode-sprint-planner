@@ -1,16 +1,14 @@
-import { promises } from "fs";
 import * as Constants from "../constants";
-import { Session } from "inspector";
-import * as vsc from "vscode";
 import { AzureWorkItemInfoResult, WorkItemInfo } from "../models/azure-client/workItems";
 var expect = require("expect.js") as (target?: any) => Expect.Root;
 import { SessionStore } from "../store";
-import { AzureClient, IAzureClient, IterationInfo, TaskInfo, UserStoryIdentifier } from "../utils/azure-client";
+import { IAzureClient, IterationInfo, TaskInfo } from "../utils/azure-client";
 import { Configuration } from "../utils/config";
 import { Logger } from "../utils/logger";
-import { ITextProcessor, TextProcessor } from "../utils/textProcessor";
-import { IVsCodeTextEditorService, VsCodeTextEditorService } from "../vsCodeTextEditorService";
+import { ITextProcessor } from "../utils/textProcessor";
+import { IVsCodeTextEditorService } from "../vsCodeTextEditorService";
 import * as sinon from "sinon";
+import { IterationTextInput } from "../models/textProcessor";
 
 describe("Given SessionStore", function () {
   let store: SessionStore;
@@ -23,12 +21,12 @@ describe("Given SessionStore", function () {
     azureClient = {
       getIterationsInfo: () => Promise.resolve([]),
       getCurrentIterationInfo: () => Promise.resolve(<IterationInfo>{}),
-      getIterationWorkItems: (iterationId: string) => Promise.resolve([]),
+      getIterationWorkItems: () => Promise.resolve([]),
       getActivityTypes: () => Promise.resolve([]),
-      GetWorkItemInfos: (userStoryIds: number[]) => Promise.resolve(<AzureWorkItemInfoResult>{}),
-      getMaxTaskStackRank: (taskIds: number[]) => Promise.resolve(-1),
-      createWorkItem: (title: string, iterationPath: string, workItemType: string) => Promise.resolve(<WorkItemInfo>{}),
-      createOrUpdateTask: (task: TaskInfo) => Promise.resolve(-1),
+      GetWorkItemInfos: () => Promise.resolve(<AzureWorkItemInfoResult>{}),
+      getMaxTaskStackRank: () => Promise.resolve(-1),
+      createWorkItem: () => Promise.resolve(<WorkItemInfo>{}),
+      createOrUpdateTask: () => Promise.resolve(-1),
     };
 
     const logger = new Logger();
@@ -36,15 +34,15 @@ describe("Given SessionStore", function () {
     config = new Configuration(logger);
 
     textProcessor = {
-      getWorkItemLineIndices: (allLines: string[], prefixes: Constants.IPrefix[]) => [],
-      getIteration: (allLines: string[], currentLine: number) => undefined,
-      getWorkItemInfo: (allLines: string[], currentLine: number, prefixes: Constants.IPrefix[]) => undefined,
+      getWorkItemLineIndices: () => [],
+      getIteration: () => undefined,
+      getWorkItemInfo: () => undefined,
 
       // TODO: remove
-      getUserStoryLineIndices: (allLines: string[]) => undefined,
-      getUserStory: (allLines: string[], currentLine: number) => undefined,
-      getBugLineIndices: (allLines: string[]) => [],
-      getBug: (allLines: string[], currentLine: number) => undefined,
+      getUserStoryLineIndices: () => undefined,
+      getUserStory: () => undefined,
+      getBugLineIndices: () => [],
+      getBug: () => undefined,
     };
 
     vsCodeTextEditorService = {
@@ -65,36 +63,108 @@ describe("Given SessionStore", function () {
 
       azureClient.getCurrentIterationInfo = () => Promise.resolve(iterationInfo);
 
-      const azureClientSpy = sinon.spy(azureClient, "getCurrentIterationInfo");
+      const getCurrentIterationSpy = sinon.spy(azureClient, "getCurrentIterationInfo");
 
       vsCodeTextEditorService.getEditorText = () => undefined;
 
       const result = await store.determineIteration();
 
-      expect(azureClientSpy.calledOnce).to.be(true);
+      expect(getCurrentIterationSpy.calledOnce).to.be(true);
       expect(result).to.be(iterationInfo);
     });
 
-    it("should call the azure client only once to get the curren iteration when called multiple times", async () => {
-        const iterationInfo: IterationInfo = {
-          id: "1",
-          name: "my name",
-          path: "my/path",
-        };
-  
-        azureClient.getCurrentIterationInfo = () => Promise.resolve(iterationInfo);
-  
-        const azureClientSpy = sinon.spy(azureClient, "getCurrentIterationInfo");
-  
-        vsCodeTextEditorService.getEditorText = () => undefined;
-  
-        const result = await store.determineIteration();
-        const result2 = await store.determineIteration();
-  
-        expect(azureClientSpy.calledOnce).to.be(true);
-        expect(result).to.be(iterationInfo);
-        expect(result).to.be(result2);
-      });
+    it("should call the azure client only once to get the current iteration when called multiple times", async () => {
+      const iterationInfo: IterationInfo = {
+        id: "1",
+        name: "my name",
+        path: "my/path",
+      };
+
+      azureClient.getCurrentIterationInfo = () => Promise.resolve(iterationInfo);
+
+      const getCurrentIterationSpy = sinon.spy(azureClient, "getCurrentIterationInfo");
+
+      vsCodeTextEditorService.getEditorText = () => undefined;
+
+      const result = await store.determineIteration();
+      const result2 = await store.determineIteration();
+
+      expect(getCurrentIterationSpy.calledOnce).to.be(true);
+      expect(result).to.be(iterationInfo);
+      expect(result).to.be(result2);
+    });
+  });
+
+  it("should call get the current iteration when there is text in the editor but no iteration prefix", async () => {
+    const iterationInfo: IterationInfo = {
+      id: "1",
+      name: "my name",
+      path: "my/path",
+    };
+
+    azureClient.getCurrentIterationInfo = () => Promise.resolve(iterationInfo);
+    vsCodeTextEditorService.getEditorText = () => `NOT#1 not configured hash
+US#1 - known user story hash
+US#new - known user story hash
+SU#1 - other not configured hash
+BUG#1 - known bug hash
+BUG#new - known bug hash`;
+
+    const getCurrentIterationSpy = sinon.spy(azureClient, "getCurrentIterationInfo");
+    const getEditorTextSpy = sinon.spy(vsCodeTextEditorService, "getEditorText");
+
+    const result = await store.determineIteration();
+
+    expect(getCurrentIterationSpy.calledOnce).to.be(true);
+    expect(getEditorTextSpy.calledOnce).to.be(true);
+    expect(result).to.be(iterationInfo);
+  });
+
+  it("should set the custom iteration when the itertion prefix is found", async () => {
+    const iterationInfo: IterationInfo = {
+      id: "1",
+      name: "my name",
+      path: "my/path",
+    };
+
+    const azureClientIterations: IterationInfo[] = [
+      {
+        id: "00000000-0000-0000-0000-00000000001",
+        name: "Iteration 1",
+        path: "project/Iteration1",
+      },
+      {
+        id: "00000000-0000-0000-0000-00000000002",
+        name: "Iteration 2",
+        path: "project/Iteration2",
+      },
+    ];
+
+    azureClient.getCurrentIterationInfo = () => Promise.resolve(iterationInfo);
+    azureClient.getIterationsInfo = () => Promise.resolve(azureClientIterations);
+    vsCodeTextEditorService.getEditorText = () => `IT#00000000-0000-0000-0000-00000000002 - Iteration 2 - (project/Iteration 1)
+NOT#1 not configured hash
+US#1 - known user story hash
+US#new - known user story hash
+SU#1 - other not configured hash
+BUG#1 - known bug hash
+BUG#new - known bug hash`;
+
+    textProcessor.getIteration = () => <IterationTextInput>{ id: "00000000-0000-0000-0000-00000000002", line: 0 };
+
+    const getCurrentIterationSpy = sinon.spy(azureClient, "getCurrentIterationInfo");
+    const getIterationInfosSpy = sinon.spy(azureClient, "getIterationsInfo");
+    const getEditorTextSpy = sinon.spy(vsCodeTextEditorService, "getEditorText");
+    const getIterationSpy = sinon.spy(textProcessor, "getIteration");
+
+    const result = await store.determineIteration();
+
+    expect(getCurrentIterationSpy.notCalled).to.be(true);
+    expect(getEditorTextSpy.calledOnce).to.be(true);
+    expect(getIterationSpy.calledOnce).to.be(true);
+    expect(getIterationInfosSpy.calledOnce).to.be(true);
+    expect(result).not.to.be(iterationInfo);
+    expect(result).to.be(azureClientIterations[0]);
   });
 });
 // 	describe('determineIteration', function() {
