@@ -209,8 +209,8 @@ export class TextProcessor implements ITextProcessor {
 		for (; currentLine >= 0; currentLine--) {
 			const match = Constants.Bug.regex.exec(lines[currentLine]);
 
-			if (match !== null) {
-				const { id, title } = match.groups!;
+			if (match?.groups) {
+				const { id, title } = match.groups;
 
 				return {
 					line: currentLine,
@@ -323,21 +323,21 @@ export class TextProcessor implements ITextProcessor {
 
 		taskTitle = taskTitle.replace(Constants.TaskPrefixRegex, '');
 
-		const match_id = taskTitle.match(Constants.TaskIdRegex);
-		if (match_id !== null) {
-			const id = match_id.groups!.id;
+		const matchId = taskTitle.match(Constants.TaskIdRegex);
+		if (matchId?.groups) {
+			const id = matchId.groups.id;
 
 			task.id = parseInt(id);
-			taskTitle = taskTitle.replace(match_id[0], '');
+			taskTitle = taskTitle.replace(matchId[0], '');
 		}
 
 		const match = taskTitle.match(Constants.TaskEstimationRegex);
-		if (match !== null) {
-			const est = match.groups!.estimation;
+		if (match?.groups) {
+			const est = match.groups.estimation;
 			if (est) {
 				task.estimation = parseFloat(est);
 			} else {
-				const minutes = parseInt(match.groups!.estimation_m);
+				const minutes = parseInt(match.groups.estimation_m);
 				task.estimation = Math.floor(minutes / 60 * 100) / 100;
 			}
 			taskTitle = taskTitle.replace(match[0], '');

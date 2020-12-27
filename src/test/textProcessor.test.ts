@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-non-null-assertion */
+// eslint-disable-next-line @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
 var expect = require('expect.js') as (target?: any) => Expect.Root;
 import * as Constants from '../constants';
 import { IterationTextInput } from '../models/textProcessor';

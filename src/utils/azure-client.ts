@@ -3,7 +3,7 @@ import * as vsc from "vscode";
 
 import { IterationsResult } from "../models/azure-client/iterations";
 import { IterationWorkItemsResult } from "../models/azure-client/iterationsWorkItems";
-import { AzureWorkItemInfoResult, WorkItemInfo } from "../models/azure-client/workItems";
+import { WorkItemInfo, WorkItemInfoResult } from "../models/azure-client/workItems";
 import { FieldDefinition } from "../models/azure-client/fields";
 import { Logger } from "./logger";
 import { Stopwatch } from "./stopwatch";
@@ -15,7 +15,7 @@ export interface IAzureClient {
   getCurrentIterationInfo(): Promise<IterationInfo>;
   getIterationWorkItems(iterationId: string): Promise<UserStoryIdentifier[]>;
   getActivityTypes(): Promise<string[]>;
-  GetWorkItemInfos(userStoryIds: number[]): Promise<AzureWorkItemInfoResult>;
+  GetWorkItemInfos(userStoryIds: number[]): Promise<WorkItemInfoResult>;
   getMaxTaskStackRank(taskIds: number[]): Promise<number>;
   createWorkItem(title: string, iterationPath: string, workItemType: string): Promise<WorkItemInfo>;
   createOrUpdateTask(task: TaskInfo): Promise<number>;
@@ -40,11 +40,15 @@ export class AzureClient implements IAzureClient, vsc.Disposable {
     });
   }
 
-  dispose() {
+  dispose(): void {
     this._eventHandler.dispose();
   }
 
-  private recreateClient() {
+	private recreateClient() {
+		if (!this.config.isValid) {
+			return;
+		}
+
     if (this._interceptors.length > 0) {
       this._interceptors.forEach((id) => {
         this.client.interceptors.response.eject(id);
@@ -53,9 +57,9 @@ export class AzureClient implements IAzureClient, vsc.Disposable {
       this._interceptors = [];
     }
 
-    let organization = encodeURIComponent(this.config.organization!);
-    let project = encodeURIComponent(this.config.project!);
-    let team = encodeURIComponent(this.config.team!);
+    const organization = encodeURIComponent(this.config.organization ?? '');
+    const project = encodeURIComponent(this.config.project ?? '');
+    const team = encodeURIComponent(this.config.team ?? '');
 
     const clientFactory = (baseUrl: string) => {
       const client = axios.create({
@@ -85,8 +89,9 @@ export class AzureClient implements IAzureClient, vsc.Disposable {
     this.teamClient = clientFactory(`https://dev.azure.com/${organization}/${project}/${team}/_apis/`);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private logRequest(request: any, returnValue: any, response?: AxiosResponse) {
-    console.log(`[DEBUG] ${request.method!.toUpperCase()} ${request.path}`);
+    console.log(`[DEBUG] ${request.method.toUpperCase()} ${request.path}`);
     if (response) {
       console.log(`[DEBUG] Response: ${JSON.stringify(response.data)}`);
     }
@@ -99,7 +104,7 @@ export class AzureClient implements IAzureClient, vsc.Disposable {
     finish();
 
     if (result.data.count > 0) {
-      let iterations: IterationInfo[] = [];
+      const iterations: IterationInfo[] = [];
       result.data.value.forEach((element) => {
         const iteration = <IterationInfo>{
           id: element.id,
@@ -162,15 +167,15 @@ export class AzureClient implements IAzureClient, vsc.Disposable {
     return result.data.allowedValues;
   }
 
-  public async GetWorkItemInfos(userStoryIds: number[]): Promise<AzureWorkItemInfoResult> {
+  public async GetWorkItemInfos(userStoryIds: number[]): Promise<WorkItemInfoResult> {
     const finish = this.logger.perf("Getting work items info...");
 
-    const params = <any>{
+    const params: WorkItemRequestParams = {
       ids: userStoryIds.join(","),
       $expand: "Relations",
     };
 
-    const result = await this.client.get<AzureWorkItemInfoResult>("/wit/workitems", { params });
+    const result = await this.client.get<WorkItemInfoResult>("/wit/workitems", { params });
     finish();
 
     return result.data;
@@ -184,12 +189,12 @@ export class AzureClient implements IAzureClient, vsc.Disposable {
 
     const finish = this.logger.perf("Getting max stack rank for tasks...");
 
-    const params: any = {
+    const params: WorkItemRequestParams = {
       ids: taskIds.join(","),
       fields: ["Microsoft.VSTS.Common.StackRank"].join(","),
     };
 
-    const result = await this.client.get<AzureWorkItemInfoResult>("/wit/workitems", { params });
+    const result = await this.client.get<WorkItemInfoResult>("/wit/workitems", { params });
     const stackRanks = result.data.value.map((t) => t.fields["Microsoft.VSTS.Common.StackRank"]);
 
     finish();
@@ -215,7 +220,8 @@ export class AzureClient implements IAzureClient, vsc.Disposable {
     } else {
       this.logger.log(`Updating task #${task.id}: ${task.title}...`);
     }
-    let stopwatch = Stopwatch.startNew();
+
+    const stopwatch = Stopwatch.startNew();
 
     const func = createNewTask ? this.client.post : this.client.patch;
     const url = createNewTask ? "/wit/workitems/$Task" : `/wit/workitems/${task.id}`;
@@ -239,7 +245,7 @@ export class AzureClient implements IAzureClient, vsc.Disposable {
     const request = this.workItemRequestBuilder.createUserStory(title, iterationPath);
 
     this.logger.log(`Creating Bug: ${title}...`);
-    let stopwatch = Stopwatch.startNew();
+    const stopwatch = Stopwatch.startNew();
 
     return this.client
       .post<WorkItemInfo>(`/wit/workitems/$${workItemType}`, request, {
@@ -290,4 +296,10 @@ export interface TaskInfo {
   estimation?: number;
   userStoryUrl: string;
   stackRank?: number;
+}
+
+export interface WorkItemRequestParams {
+    ids: string;
+    '$expand'?: string;
+    fields?: string
 }

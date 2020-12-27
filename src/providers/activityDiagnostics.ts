@@ -15,7 +15,7 @@ export class ActivityDiagnostics implements vsc.Disposable {
 		this.collection = vsc.languages.createDiagnosticCollection('activity-diagnostics');
 	}
 
-	dispose() {
+	dispose(): void {
 		// tslint:disable: no-unused-expression
 		this.collection && this.collection.dispose();
 		this.handler && this.handler.dispose();
@@ -23,7 +23,7 @@ export class ActivityDiagnostics implements vsc.Disposable {
 		this.decorations.forEach(d => d.dispose());
 	}
 
-	register() {
+	register(): void {
 		this.handler = vsc.workspace.onDidChangeTextDocument(debounce(this.documentChanged.bind(this), 350));
 
 		if (vsc.window.activeTextEditor) {
@@ -43,7 +43,7 @@ export class ActivityDiagnostics implements vsc.Disposable {
 		await this.refresh(e.document);
 	}
 
-	async refresh(document: vsc.TextDocument) {
+	async refresh(document: vsc.TextDocument): Promise<void> {
 		await this.store.ensureHasActivityTypes();
 
 		this.collection.clear();
@@ -71,7 +71,7 @@ export class ActivityDiagnostics implements vsc.Disposable {
 					diagnostic.code = activity;
 					diagnostics.push(diagnostic);
 				} else if (textEditor) {
-					let userStory = this.findUserStory(userStories, line);
+					const userStory = this.findUserStory(userStories, line);
 					if (userStory) {
 						const decoration = this.createActivityDecoration(userStory, activity);
 						const range = new vsc.Range(line, 0, line, activity.length + 1);

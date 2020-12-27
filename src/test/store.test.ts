@@ -1,8 +1,8 @@
-import * as Constants from "../constants";
-import { AzureWorkItemInfoResult, WorkItemInfo } from "../models/azure-client/workItems";
+// eslint-disable-next-line no-var, @typescript-eslint/no-var-requires, @typescript-eslint/no-explicit-any
 var expect = require("expect.js") as (target?: any) => Expect.Root;
+import { WorkItemInfo, WorkItemInfoResult } from "../models/azure-client/workItems";
 import { SessionStore } from "../store";
-import { IAzureClient, IterationInfo, TaskInfo } from "../utils/azure-client";
+import { IAzureClient, IterationInfo } from "../utils/azure-client";
 import { Configuration } from "../utils/config";
 import { Logger } from "../utils/logger";
 import { ITextProcessor } from "../utils/textProcessor";
@@ -23,7 +23,7 @@ describe("Given SessionStore", function () {
       getCurrentIterationInfo: () => Promise.resolve(<IterationInfo>{}),
       getIterationWorkItems: () => Promise.resolve([]),
       getActivityTypes: () => Promise.resolve([]),
-      GetWorkItemInfos: () => Promise.resolve(<AzureWorkItemInfoResult>{}),
+      GetWorkItemInfos: () => Promise.resolve(<WorkItemInfoResult>{}),
       getMaxTaskStackRank: () => Promise.resolve(-1),
       createWorkItem: () => Promise.resolve(<WorkItemInfo>{}),
       createOrUpdateTask: () => Promise.resolve(-1),
