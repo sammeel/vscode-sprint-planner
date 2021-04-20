@@ -1,10 +1,11 @@
-import * as vsc from 'vscode';
-import * as fs from 'fs';
-import { Logger } from './logger';
-import Axios from 'axios';
+import * as vsc from "vscode";
+import * as fs from "fs";
+import * as path from "path";
+import { Logger } from "./logger";
+import Axios from "axios";
 
-const ConfigurationKey = 'planner.azure-devops';
-const SnippetsConfigurationKey = 'planner.azure-devops.snippets';
+const ConfigurationKey = "planner.azure-devops";
+const SnippetsConfigurationKey = "planner.azure-devops.snippets";
 
 export class Configuration implements vsc.Disposable {
     public process: string | undefined;
@@ -24,22 +25,26 @@ export class Configuration implements vsc.Disposable {
     }
 
     get isValid(): boolean {
-        return !!this.organization && !!this.project && !!this.team && !!this.token;
+        return (
+            !!this.organization && !!this.project && !!this.team && !!this.token
+        );
     }
 
     constructor(private logger: Logger) {
         this._onDidChange = new vsc.EventEmitter<Configuration>();
 
         this.load(true).then(() => {
-            logger.log('Configuration loaded');
+            logger.log("Configuration loaded");
         });
 
-        this._eventHandler = vsc.workspace.onDidChangeConfiguration(event => {
-            if (event.affectsConfiguration(ConfigurationKey )) {
-                const snippetsChanged = event.affectsConfiguration(SnippetsConfigurationKey );
+        this._eventHandler = vsc.workspace.onDidChangeConfiguration((event) => {
+            if (event.affectsConfiguration(ConfigurationKey)) {
+                const snippetsChanged = event.affectsConfiguration(
+                    SnippetsConfigurationKey
+                );
 
                 this.load(snippetsChanged).then(() => {
-                    logger.log('Configuration reloaded');
+                    logger.log("Configuration reloaded");
                     this._onDidChange.fire(this);
                 });
             }
@@ -47,22 +52,24 @@ export class Configuration implements vsc.Disposable {
     }
 
     private async load(loadSnippets: boolean) {
-        const config = vsc.workspace.getConfiguration(ConfigurationKey );
-        this.organization = config.get('organization');
-        this.project = config.get('project');
-        this.team = config.get('team');
-        this.token = config.get('token');
-        this.process = config.get('process');
-        this.debug = config.get<boolean>('debug', false);
-        this.defaultActivity = config.get('default.activity');
+        const config = vsc.workspace.getConfiguration(ConfigurationKey);
+        this.organization = config.get("organization");
+        this.project = config.get("project");
+        this.team = config.get("team");
+        this.token = config.get("token");
+        this.process = config.get("process");
+        this.debug = config.get<boolean>("debug", false);
+        this.defaultActivity = config.get("default.activity");
 
         if (loadSnippets) {
-            const snippets = config.get<SnippetConfig>('snippets');
+            const snippets = config.get<SnippetConfig>("snippets");
             this.snippets = await this.loadSnippets(snippets);
         }
     }
 
-    private async loadSnippets(snippets?: SnippetConfig): Promise<SnippetConfig> {
+    private async loadSnippets(
+        snippets?: SnippetConfig
+    ): Promise<SnippetConfig> {
         if (!snippets || Object.keys(snippets).length === 0) {
             return Promise.resolve({});
         }
@@ -71,41 +78,62 @@ export class Configuration implements vsc.Disposable {
         const result: SnippetConfig = {};
 
         for (const key in snippets) {
-            promises.push(this.loadSingleSnippet(snippets[key]).then(data => {
-                result[key] = data;
-            }).catch((err: Error) => {
-                this.logger.log(`Error loading snippet '${key}': ${err.message}`, true);
-                console.log(err);
-                throw err;
-            }));
+            promises.push(
+                this.loadSingleSnippet(snippets[key])
+                    .then((data) => {
+                        result[key] = data;
+                    })
+                    .catch((err: Error) => {
+                        this.logger.log(
+                            `Error loading snippet '${key}': ${err.message}`,
+                            true
+                        );
+                        console.log(err);
+                        throw err;
+                    })
+            );
         }
 
         try {
             await Promise.all(promises);
         } catch (err) {
-            const seeDetailsAction = 'See details';
-            vsc.window.showErrorMessage('Some snippets could not have been loaded', seeDetailsAction).then(item => {
-                if (item === seeDetailsAction) {
-                    this.logger.show();
-                }
-            });
+            const seeDetailsAction = "See details";
+            vsc.window
+                .showErrorMessage(
+                    "Some snippets could not have been loaded",
+                    seeDetailsAction
+                )
+                .then((item) => {
+                    if (item === seeDetailsAction) {
+                        this.logger.show();
+                    }
+                });
         }
 
         return result;
     }
 
     private async loadSingleSnippet(url: string) {
-        if (url.startsWith('http')) {
+        if (url.startsWith("http") || url.startsWith("https")) {
             if (this.debug) {
                 console.log(`[DEBUG] Getting ${url}`);
             }
-            return Axios.get(url).then(r => r.data as string);
+            return Axios.get(url).then((r) => r.data as string);
         } else {
             return new Promise<string>((resolve, reject) => {
                 if (this.debug) {
                     console.log(`[DEBUG] Reading ${url}`);
                 }
-                fs.readFile(url, { encoding: "UTF8" }, (err, data) => {
+
+                let filePath = url;
+                if (!path.isAbsolute(url) && vsc.workspace.workspaceFolders !== undefined) {
+                    filePath = path.join(
+                        vsc.workspace.workspaceFolders[0].uri.fsPath,
+                        filePath
+                    );
+                }
+
+                fs.readFile(filePath, { encoding: "UTF8" }, (err, data) => {
                     if (err) {
                         reject(err);
                     } else {
