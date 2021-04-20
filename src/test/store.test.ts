@@ -2,7 +2,7 @@
 var expect = require("expect.js") as (target?: any) => Expect.Root;
 import { WorkItemInfo, WorkItemInfoResult } from "../models/azure-client/workItems";
 import { SessionStore } from "../store";
-import { IAzureClient, IterationInfo } from "../utils/azure-client";
+import { IAzureClient, IterationInfo, TaskInfo } from "../utils/azure-client";
 import { Configuration } from "../utils/config";
 import { Logger } from "../utils/logger";
 import { ITextProcessor } from "../utils/textProcessor";
@@ -27,6 +27,8 @@ describe("Given SessionStore", function () {
       getMaxTaskStackRank: () => Promise.resolve(-1),
       createWorkItem: () => Promise.resolve(<WorkItemInfo>{}),
       createOrUpdateTask: () => Promise.resolve(-1),
+      getProjectAreas: () => Promise.resolve(<string[]>[]),
+      getTasksInfo: () => Promise.resolve(<TaskInfo[]>[])
     };
 
     const logger = new Logger();

@@ -1,4 +1,3 @@
-import { S_IFMT } from 'constants';
 import * as Constants from '../constants';
 import { TaskTextInput, WorkItemTextInput } from '../models/textProcessor';
 import { IterationTextInput } from '../models/textProcessor';
@@ -33,7 +32,7 @@ export class TextProcessor implements ITextProcessor {
 		const matches = prefixes.map(prefix => {
 			const match = prefix.regex.exec(currentLine);
 
-			if (match == null) {
+			if (match === null) {
 				return null;
 			}
 
@@ -42,7 +41,7 @@ export class TextProcessor implements ITextProcessor {
 				match: match
 			};
 		})
-		.filter(r => r != null);
+		.filter(r => r !== null);
 
 		if (matches.length > 1) {
 			console.error(`more than 1 prefix matched. Matched prefixes: ${prefixes.map(p => p.prefix).join(',')}`);
@@ -121,7 +120,7 @@ export class TextProcessor implements ITextProcessor {
 			const matches = prefixes.map(prefix => {
 				const match = prefix.regex.exec(lines[currentLine]);
 
-				if (match == null) {
+				if (match === null) {
 					return null;
 				}
 
@@ -130,7 +129,7 @@ export class TextProcessor implements ITextProcessor {
 					match: match
 				};
 			})
-			.filter(r => r != null);
+			.filter(r => r !== null);
 
 			if (matches.length > 1) {
 				return console.error(`more than 1 match found for line ${currentLine}`);
@@ -259,7 +258,7 @@ export class TextProcessor implements ITextProcessor {
 					updateDescription(description);
 					description = [];
 					tasks.push(
-                        getTask(line, lineNo, activity));
+                        TextProcessor.getTask(line, lineNo, activity));
 				}
 				lineNo++;
 			}

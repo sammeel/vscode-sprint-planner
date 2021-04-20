@@ -74,7 +74,7 @@ BUG#1 - other not configured hash`.split("\n");
 
         it("when calling with iteration prefix not on the first line of the file", () => {
             const lines: string[] = `US#1 - not configured hash
-IT#d22d6b81-79d4-43c8-8160-ff44077aa244 - Iteration 1 - (project\Iteration 1)
+IT#d22d6b81-79d4-43c8-8160-ff44077aa244 - Iteration 1 - (project\\Iteration 1)
 BUG#1 - other not configured hash`.split("\n");
 
             const result = textProcessor.getIteration(lines, 2);
@@ -87,7 +87,7 @@ BUG#1 - other not configured hash`.split("\n");
         it("when calling with iteration prefix not on the first line of the file and cursor before iteration", () => {
             const lines: string[] = `US#1 not configured hash
 US#2 - not configured hash
-IT#d22d6b81-79d4-43c8-8160-ff44077aa244 - Iteration 1 - (project\Iteration 1)
+IT#d22d6b81-79d4-43c8-8160-ff44077aa244 - Iteration 1 - (project\\Iteration 1)
 BUG#1 - other not configured hash`.split("\n");
 
             const result = textProcessor.getIteration(lines, 1);
@@ -96,7 +96,7 @@ BUG#1 - other not configured hash`.split("\n");
         });
 
         it("When calling with iteration on the first line of the file", () => {
-            const lines: string[] = `IT#d22d6b81-79d4-43c8-8160-ff44077aa244 - Iteration 1 - (project\Iteration 1)
+            const lines: string[] = `IT#d22d6b81-79d4-43c8-8160-ff44077aa244 - Iteration 1 - (project\\Iteration 1)
 US#1 - not configured hash
 BUG#1 - other not configured hash`.split("\n");
 

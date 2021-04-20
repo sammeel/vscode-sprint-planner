@@ -11,8 +11,8 @@ export class WorkItemLinkProvider implements vsc.DocumentLinkProvider {
     provideDocumentLinks(document: vsc.TextDocument, _token: vsc.CancellationToken): vsc.ProviderResult<vsc.DocumentLink[]> {
         const lines = document.getText().split(NewLineRegex);
         const userStoryLines = this.textProcessor.getUserStoryLineIndices(lines);
-        const userStories = userStoryLines.map(usLine => this.textProcessor.getUserStory(lines, usLine)!);
-        const userStoriesWithIds = userStories.filter(us => !!us.id);
+        const userStories = userStoryLines.map((usLine: number) => this.textProcessor.getUserStory(lines, usLine)!);
+        const userStoriesWithIds = userStories.filter((us: { id: string; }) => !!us.id);
 
         const links: vsc.DocumentLink[] = [];
 
@@ -23,7 +23,7 @@ export class WorkItemLinkProvider implements vsc.DocumentLinkProvider {
 
             links.push(new vsc.DocumentLink(range, this.buildWorkItemLink(us.id!)));
 
-            const tasksWithIds = us.tasks.filter(t => !!t.id);
+            const tasksWithIds = us.tasks.filter((t: { id: string; }) => !!t.id);
 
             for (const task of tasksWithIds) {
                 const numberOfDigits = task.id!.toString().length;
