@@ -38,7 +38,7 @@ export class TextProcessor implements ITextProcessor {
 			}
 
 			return {
-				prefix: prefix, 
+				prefix: prefix,
 				match: match
 			};
 		})
@@ -126,12 +126,12 @@ export class TextProcessor implements ITextProcessor {
 				}
 
 				return {
-					prefix: prefix, 
+					prefix: prefix,
 					match: match
 				};
 			})
 			.filter(r => r != null);
-			
+
 			if (matches.length > 1) {
 				return console.error(`more than 1 match found for line ${currentLine}`);
 			} else if (matches.length === 0) {
@@ -155,17 +155,19 @@ export class TextProcessor implements ITextProcessor {
 
 	// TODO: remove
 	public getUserStory(allLines: string[], currentLine: number) {
-		const userStoryInfo = this.getUserStoryInfo(allLines, currentLine);
+        const userStoryInfo = this.getUserStoryInfo(allLines, currentLine);
 		if (!userStoryInfo) {
 			return;
 		}
 
-		const tasks = this.getTasksInfo(allLines, userStoryInfo.line + 1);
+        const areaIdx = TextProcessor.getAreasIndices(allLines, userStoryInfo.line).pop();
+		const tasks = TextProcessor.getTasksInfo(allLines, userStoryInfo.line + 1);
 
-		return <WorkItemTextInput>{
+		return <any>{
 			line: userStoryInfo.line,
 			id: userStoryInfo.id,
 			title: userStoryInfo.title,
+            areaPath: typeof areaIdx === "number" && TextProcessor.getAreaName(allLines, areaIdx),
 			tasks
 		};
 	}
@@ -188,15 +190,15 @@ export class TextProcessor implements ITextProcessor {
 	}
 
 	// TODO: remove
-	public getBug(allLines: string[], currentLine: number) {
+	public getBug(allLines: string[], currentLine: number): any {
 		const userStoryInfo = this.getBugInfo(allLines, currentLine);
 		if (!userStoryInfo) {
 			return;
 		}
 
-		const tasks = this.getTasksInfo(allLines, userStoryInfo.line + 1);
+		const tasks = TextProcessor.getTasksInfo(allLines, userStoryInfo.line + 1);
 
-		return <WorkItemTextInput>{
+		return <any>{
 			line: userStoryInfo.line,
 			id: userStoryInfo.id,
 			title: userStoryInfo.title,
@@ -221,13 +223,13 @@ export class TextProcessor implements ITextProcessor {
 		}
 	}
 
-	private getWorkItemTasksInfo(lines: string[], currentLine: number, prefix: Constants.IPrefix) {
+    private getWorkItemTasksInfo(lines: string[], currentLine: number, prefix: Constants.IPrefix) {
 		const firstTaskLine = currentLine;
 		let lastTaskLine = lines.length - 1;
 
 		// find work item breaking pattern
 		for (; currentLine < lines.length; currentLine++) {
-			if (this.isEndOfWorkItem(lines[currentLine], prefix)) {
+			if (TextProcessor.isEndOfWorkItem(lines[currentLine], prefix)) {
 				lastTaskLine = currentLine - 1;
 				break;
 			}
@@ -249,14 +251,15 @@ export class TextProcessor implements ITextProcessor {
 			};
 
 			for (const line of taskLines) {
-				if (this.isActivityLine(line)) {
+				if (TextProcessor.isActivityLine(line)) {
 					activity = line.substr(0, line.length - 1);
-				} else if (this.isTaskDescriptionLine(line)) {
+				} else if (TextProcessor.isTaskDescriptionLine(line)) {
 					description.push(line.trimLeft());
 				} else {
 					updateDescription(description);
 					description = [];
-					tasks.push(this.getTask(line, lineNo, activity));
+					tasks.push(
+                        getTask(line, lineNo, activity));
 				}
 				lineNo++;
 			}
@@ -269,14 +272,29 @@ export class TextProcessor implements ITextProcessor {
 		return [];
 	}
 
-	// TODO: remove
-	private getTasksInfo(lines: string[], currentLine: number) {
+    public static getAreasIndices(allLines: string[], userStoryLine?: number): number[] {
+        const results: number[] = [];
+
+		for (let i = 0; i < (userStoryLine || allLines.length); i++) {
+			if (allLines[i].startsWith(Constants.AreaPrefix)) {
+				results.push(i);
+			}
+		}
+
+		return results;
+	}
+
+    public static getAreaName(allLines: string[], currentLine: number): string {
+        return allLines[currentLine].substring(Constants.AreaPrefix.length);
+    }
+
+	private static getTasksInfo(lines: string[], currentLine: number) {
 		const firstTaskLine = currentLine;
 		let lastTaskLine = lines.length - 1;
 
 		// find user story breaking pattern
 		for (; currentLine < lines.length; currentLine++) {
-			if (this.isEndOfUserStory(lines[currentLine]) || this.isEndOfBug(lines[currentLine])) {
+			if (TextProcessor.isEndOfUserStory(lines[currentLine])) {
 				lastTaskLine = currentLine - 1;
 				break;
 			}
@@ -298,14 +316,14 @@ export class TextProcessor implements ITextProcessor {
 			};
 
 			for (const line of taskLines) {
-				if (this.isActivityLine(line)) {
+				if (TextProcessor.isActivityLine(line)) {
 					activity = line.substr(0, line.length - 1);
 				} else if (this.isTaskDescriptionLine(line)) {
 					description.push(line.trimLeft());
 				} else {
 					updateDescription(description);
 					description = [];
-					tasks.push(this.getTask(line, lineNo, activity));
+					tasks.push(TextProcessor.getTask(line, lineNo, activity));
 				}
 				lineNo++;
 			}
@@ -318,7 +336,7 @@ export class TextProcessor implements ITextProcessor {
 		return [];
 	}
 
-	private getTask(taskTitle: string, lineNo: number, activity?: string): TaskTextInput {
+	private static getTask(taskTitle: string, lineNo: number, activity?: string): TaskTextInput {
 		const task = <TaskTextInput>{};
 
 		taskTitle = taskTitle.replace(Constants.TaskPrefixRegex, '');
@@ -350,24 +368,17 @@ export class TextProcessor implements ITextProcessor {
 		return task;
 	}
 
-	private isEndOfWorkItem(line: string, prefix: Constants.IPrefix) {
-		let isEndOfUserStory = prefix.endRegex!.test(line) ||  prefix.regex.test(line);
+	private static isEndOfWorkItem(line: string, prefix: Constants.IPrefix) {
+		const isEndOfUserStory = prefix.endRegex!.test(line) ||  prefix.regex.test(line);
 		return isEndOfUserStory;
 	}
 
-	// TODO: remove
-	private isEndOfUserStory(line: string) {
-		let isEndOfUserStory = Constants.UserStoryAgile.endRegex!.test(line) || Constants.UserStoryAgile.regex.test(line);
+    private static isEndOfUserStory(line: string) {
+		const isEndOfUserStory = Constants.EndOfUserStoryRegex.test(line) || Constants.UserStoryRegex.test(line);
 		return isEndOfUserStory;
 	}
 
-	// TODO: remove
-	private isEndOfBug(line: string) {
-		let isEndOfUserStory = Constants.Bug.endRegex!.test(line) || Constants.Bug.regex.test(line);
-		return isEndOfUserStory;
-	}
-
-	private isActivityLine = (line: string) => Constants.ActivityTypeLine.test(line);
-	private isTaskDescriptionLine = (line: string) => Constants.TaskDescriptionRegex.test(line);
+	private static isActivityLine = (line: string) => Constants.ActivityTypeLine.test(line);
+	private static isTaskDescriptionLine = (line: string) => Constants.TaskDescriptionRegex.test(line);
 }
 

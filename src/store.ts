@@ -22,6 +22,7 @@ export class SessionStore implements ISessionStore {
     public activityTypes?: string[];
     public iterations?: IterationInfo[];
     public workItems?: UserStoryInfo[] = undefined;
+    public areas?: string[];
 
     constructor(
         private azureClient: IAzureClient,
@@ -132,6 +133,24 @@ export class SessionStore implements ISessionStore {
         return Promise.resolve();
     }
 
+    async ensureHasAreas(): Promise<void> {
+        if (this.areas !== undefined) {
+            return Promise.resolve();
+        }
+
+        if (!this.config.isValid) {
+            return Promise.reject(MissingUrlOrToken);
+        }
+
+        const total = Stopwatch.startNew();
+        this.areas = await this.azureClient.getProjectAreas();
+        total.stop();
+
+        vsc.window.setStatusBarMessage(`Areas fetched in ${total.toString()} (1 request)`, 2000);
+
+        return Promise.resolve();
+    }
+
     async ensureHasItemsOfWorkItemType(
         prefix: Constants.IPrefix
     ): Promise<void> {
@@ -198,10 +217,12 @@ export interface ISessionStore {
     readonly activityTypes?: string[];
     readonly iterations?: IterationInfo[];
     readonly workItems?: UserStoryInfo[];
+    readonly areas?: string[];
 
     ensureHasActivityTypes(): Promise<void>;
     ensureHasIterations(): Promise<void>;
     ensureHasItemsOfWorkItemType(prefix: Constants.IPrefix): Promise<void>;
+    ensureHasAreas(): Promise<void>;
 
     determineIteration(): Promise<IterationInfo>;
 }

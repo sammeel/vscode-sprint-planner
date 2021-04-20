@@ -15,6 +15,7 @@ export class Configuration implements vsc.Disposable {
     public token: string | undefined;
     public debug!: boolean;
     public defaultActivity: string | undefined;
+    public defaultArea: string | undefined;
     public snippets: { [name: string]: string } | undefined;
 
     private _onDidChange: vsc.EventEmitter<Configuration>;
@@ -52,14 +53,15 @@ export class Configuration implements vsc.Disposable {
     }
 
     private async load(loadSnippets: boolean) {
-        const config = vsc.workspace.getConfiguration(ConfigurationKey);
-        this.organization = config.get("organization");
-        this.project = config.get("project");
-        this.team = config.get("team");
-        this.token = config.get("token");
-        this.process = config.get("process");
-        this.debug = config.get<boolean>("debug", false);
-        this.defaultActivity = config.get("default.activity");
+        const config = vsc.workspace.getConfiguration(ConfigurationKey );
+        this.organization = config.get('organization');
+        this.project = config.get('project');
+        this.team = config.get('team');
+        this.token = config.get('token');
+        this.process = config.get('process');
+        this.debug = config.get<boolean>('debug', false);
+        this.defaultActivity = config.get('default.activity');
+        this.defaultArea = config.get('default.area');
 
         if (loadSnippets) {
             const snippets = config.get<SnippetConfig>("snippets");

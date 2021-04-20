@@ -12,7 +12,7 @@ export class WorkItemCompletionProvider implements vsc.CompletionItemProvider {
     position: vsc.Position,
     _token: vsc.CancellationToken,
     _context: vsc.CompletionContext
-  ) {
+  ): Promise<any> {
     const text = Document.getTextBeforeCursor(document, position);
 
     const prefixes = this.prefixService.getPrefixes();
@@ -39,7 +39,7 @@ export class WorkItemCompletionProvider implements vsc.CompletionItemProvider {
           }
         }
       }
-	}    
+	}
 
     return [];
   }

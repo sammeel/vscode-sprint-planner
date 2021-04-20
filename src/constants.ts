@@ -5,6 +5,8 @@ export const ActivityTypeTriggerRegex = /^[a-z]*$/i;
 export const SnippetTriggerRegex = /^[a-z]*$/i;
 export const ActivityTypeLine = /^[a-z]+:$/i;
 
+export const AreaPrefix = 'Area: ';
+
 export const IterationPrefix = 'IT#';
 export const IterationRegex = /^IT#([\da-f]{8}(?:-[\da-f]{4}){3}-[\da-f]{12})/i;
 
@@ -19,15 +21,15 @@ export const UserStoryAgile: IPrefix = {
 	prefix: 'US#',
 	workItemType: 'User Story',
 	regex: /^US#(?<id>\d+|new)( - (?<title>.*))?/,
-	endRegex: /^(---|\s*)$/	
-}
+	endRegex: /^(---|\s*)$/
+};
 
 export const UserStoryScrum: IPrefix = {
 	prefix: 'US#',
 	workItemType: 'Product Backlog Item',
 	regex: /^US#(?<id>\d+|new)( - (?<title>.*))?/,
-	endRegex: /^(---|\s*)$/	
-}
+	endRegex: /^(---|\s*)$/
+};
 
 export const Bug: IPrefix = {
 	prefix: 'BUG#',
@@ -43,5 +45,14 @@ export const TaskDescriptionRegex = /^\t/;
 export const WorkItemIdFromUrl = /\/workItems\/(\d+)/;
 
 export const Commands = {
-	publish: 'sprintplanner.publish'
+	publish: 'sprintplanner.publish',
+	syncTasks: 'sprintplanner.syncTasks'
 };
+
+export const Diagnostics = {
+    InvalidActivity: 'invalid-activity',
+    InvalidArea: 'invalid-area'
+};
+
+export const EndOfUserStoryRegex = /^(---|\s*)$/;
+export const UserStoryRegex = /^US#(?<id>\d+|new)( - (?<title>.*))?/;

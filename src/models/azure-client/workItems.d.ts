@@ -8,15 +8,20 @@ export interface WorkItemInfo {
 	fields:     WorkItemFields;
 	relations?: Relation[];
 	url:        string;
+    taskUrls:   string[];
 }
 
 export interface WorkItemFields {
-	"System.WorkItemType":             string;
-	"System.AreaPath":                 string;
-	"System.TeamProject":              string;
-	"System.IterationPath":            string;
-	"System.Title":                    string;
-	"Microsoft.VSTS.Common.StackRank": number;
+	"System.WorkItemType":                        string;
+	"System.AreaPath":                            string;
+	"System.TeamProject":                         string;
+	"System.IterationPath":                       string;
+	"System.Title":                               string;
+	"Microsoft.VSTS.Common.StackRank":            number;
+	"Microsoft.VSTS.Common.BacklogPriority":      number;
+    "Microsoft.VSTS.Common.Activity":             string;
+    "Microsoft.VSTS.Scheduling.RemainingWork":    number;
+    "Microsoft.VSTS.Scheduling.OriginalEstimate": number;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	[key: string]: any;
 }

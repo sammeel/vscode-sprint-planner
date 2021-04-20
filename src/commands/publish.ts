@@ -1,16 +1,17 @@
-import * as vsc from "vscode";
-import * as Constants from "../constants";
-import { WorkItemInfo } from "../models/azure-client/workItems";
-import { TaskTextInput, WorkItemTextInput } from "../models/textProcessor";
-import { PrefixService } from "../prefix-service";
-import { ISessionStore } from "../store";
-import { AzureClient, UserStoryInfo, TaskInfo } from "../utils/azure-client";
-import { Configuration } from "../utils/config";
-import { Logger } from "../utils/logger";
-import { UserStoryInfoMapper } from "../utils/mappers";
-import { ITextProcessor } from "../utils/textProcessor";
-import { notEmpty } from "../utils/typeCheck";
-import { LockableCommand } from "./lockableCommand";
+import * as vsc from 'vscode';
+import * as Constants from '../constants';
+import { ITextProcessor } from '../utils/textProcessor';
+import { ISessionStore } from '../store';
+import { AzureClient, TaskInfo, UserStoryInfo } from '../utils/azure-client';
+import { Logger } from '../utils/logger';
+import { inspect } from 'util';
+import { Configuration } from '../utils/config';
+import { WorkItemInfo } from '../models/azure-client/workItems';
+import { UserStoryInfoMapper } from '../utils/mappers';
+import { LockableCommand } from './lockableCommand';
+import { notEmpty } from '../utils/typeCheck';
+import { PrefixService } from '../prefix-service';
+import { TaskTextInput, WorkItemTextInput } from '../models/textProcessor';
 
 export class PublishCommand extends LockableCommand {
     constructor(
@@ -73,26 +74,16 @@ export class PublishCommand extends LockableCommand {
 
     async publish(line?: number): Promise<void> {
         const editor = vsc.window.activeTextEditor;
-        if (!editor) {
-            return;
-        }
-        if (!this.lock()) {
+        if (!editor || !this.lock()) {
             return;
         }
 
-        await vsc.window.withProgress(
-            { location: vsc.ProgressLocation.Notification },
-            async (progress) => {
-                try {
-                    const currentLine =
-                        line !== undefined
-                            ? line
-                            : editor.selection.active.line;
-                    const lines = editor.document
-                        .getText()
-                        .split(Constants.NewLineRegex);
+        await vsc.window.withProgress({ location: vsc.ProgressLocation.Notification }, async progress => {
+            try {
+                const currentLine = line !== undefined ? line : editor.selection.active.line;
+                const lines = editor.document.getText().split(Constants.NewLineRegex);
 
-                    const workItem = this.textProcessor.getWorkItemInfo(
+                const workItem = this.textProcessor.getWorkItemInfo(
                         lines,
                         currentLine,
                         this.prefixService.getPrefixes()
@@ -103,18 +94,15 @@ export class PublishCommand extends LockableCommand {
                         );
                     }
 
-                    this.validateWorkItem(workItem);
+                this.validateWorkItem(workItem);
 
-                    progress.report({
-                        increment: 10,
-                        message: "Publishing...",
-                    });
+                progress.report({ increment: 10, message: "Publishing..." });
 
-                    const createUserStory = !workItem.id;
-                    let userStoryInfo: UserStoryInfo | undefined;
+                const createUserStory = !workItem.id;
+                let userStoryInfo: UserStoryInfo | undefined;
 
-                    if (createUserStory) {
-                        const iteration = await this.sessionStore.determineIteration();
+                if (createUserStory) {
+                    const iteration = await this.sessionStore.determineIteration();
                         const workItemResult = await this.client.createWorkItem(
                             workItem.title,
                             iteration.path,
@@ -123,64 +111,43 @@ export class PublishCommand extends LockableCommand {
                         userStoryInfo = await this.getWorkItemInfo(
                             workItemResult
                         );
-                    } else {
-                        userStoryInfo = await this.getWorkItemInfo(workItem);
-                    }
-
-                    progress.report({ increment: 50 });
-
-                    if (!userStoryInfo) {
-                        return;
-                    }
-
-                    const vsoTaskIds = userStoryInfo.taskUrls
-                        .map(this.extractTaskId)
-                        .filter((x) => x) as number[];
-                    const maxStackRank = await this.client.getMaxTaskStackRank(
-                        vsoTaskIds
-                    );
-                    let firstFreeStackRank = maxStackRank + 1;
-
-                    progress.report({ increment: 10 });
-
-                    const requests = workItem.tasks.map((t) =>
-                        this.buildTaskInfo(
-                            t,
-                            userStoryInfo as UserStoryInfo,
-                            t.id ? undefined : firstFreeStackRank++
-                        )
-                    );
-
-                    const taskIds = await Promise.all(
-                        requests.map((r) => this.client.createOrUpdateTask(r))
-                    );
-
-                    progress.report({ increment: 30 });
-
-                    await this.updateEditor(
-                        editor,
-                        workItem,
-                        taskIds,
-                        createUserStory ? userStoryInfo.id : undefined
-                    );
-                    this.showSummary(
-                        userStoryInfo.id,
-                        workItem.tasks,
-                        workItem.prefix
-                    );
-
-                    return Promise.resolve();
-                } catch (err) {
-                    if (err) {
-                        vsc.window.showErrorMessage(err.message);
-                        this.logger.log(err);
-                        return Promise.reject();
-                    }
+                } else {
+                    userStoryInfo = await this.getWorkItemInfo(workItem);
                 }
-            }
-        );
 
-        this.unlock();
+                progress.report({ increment: 10 });
+
+                if (!userStoryInfo) {
+                    return;
+                }
+
+                const vsoTaskIds = userStoryInfo.taskUrls.map(this.extractTaskId).filter(x => x) as number[];
+                const maxStackRank = await this.client.getMaxTaskStackRank(vsoTaskIds);
+                let firstFreeStackRank = maxStackRank + 1;
+
+                progress.report({ increment: 10 });
+
+                const requests = workItem.tasks.map(t => this.buildTaskInfo(t, userStoryInfo!, t.id ? undefined : firstFreeStackRank++));
+
+                const increment = 70 / requests.length;
+                const taskIds: number[] = [];
+
+                for (const request of requests) {
+                    taskIds.push(await this.client.createOrUpdateTask(request));
+                    progress.report({ increment });
+                }
+
+                return Promise.resolve();
+            } catch (err) {
+                if (err) {
+                    vsc.window.showErrorMessage(err.response?.data?.message || err.message);
+                    this.logger.log(inspect(err.response.data, { depth: 3 }));
+                    return Promise.resolve();
+                }
+            } finally {
+                this.unlock();
+            }
+        });
     }
 
     private showSummary(
